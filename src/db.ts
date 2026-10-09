@@ -10,6 +10,19 @@ export interface Marcador {
   creado: number;
 }
 
+export type ColorSubrayado = 'amarillo' | 'verde' | 'azul' | 'rosa';
+
+export interface Subrayado {
+  id: string;
+  cfi: string; // rango exacto del texto subrayado
+  texto: string;
+  color: ColorSubrayado;
+  nota: string | null;
+  etiqueta: string; // capítulo donde está
+  pagina: number | null;
+  creado: number;
+}
+
 // Datos de cada libro que mostramos en la biblioteca.
 export interface BookMeta {
   id: string;
@@ -28,6 +41,7 @@ export interface BookMeta {
   locations: string | null; // páginas calculadas, guardadas para no recalcularlas
   capitulos: (string | null)[] | null; // dónde empieza cada entrada del índice (CFI)
   bookmarks: Marcador[];
+  highlights: Subrayado[];
 }
 
 // Guardamos el archivo EPUB aparte para que listar la biblioteca sea liviano.
@@ -62,6 +76,7 @@ function completar(book: Partial<BookMeta> & { id: string; title: string }): Boo
     locations: null,
     capitulos: null,
     bookmarks: [],
+    highlights: [],
     ...book,
   };
 }

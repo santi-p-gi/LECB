@@ -4,7 +4,9 @@
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
 import { EpubCFI, type Book, type Rendition } from 'epubjs';
 import { abrirEpub, calcularPaginas, ubicarCapitulos } from '../epub';
-import { getBook, getBookFile, updateBook, type BookMeta, type Marcador } from '../db';
+import { getBook, getBookFile, updateBook, type BookMeta, type ColorSubrayado, type Marcador, type Subrayado } from '../db';
+import { COLORES_SUBRAYADO, descargarSubrayados } from '../subrayados';
+import { EditorNota, ListaSubrayados, MenuSubrayado, type PosicionMenu } from './Subrayados';
 import {
   cargarPreferencias, guardarPreferencias, FUENTES, INTERLINEADOS, TAMANOS, TEMAS,
   type Fuente, type Preferencias, type Tema,
@@ -208,6 +210,11 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   const [pos, setPos] = useState<Posicion | null>(null);
   const [marcadores, setMarcadores] = useState<Marcador[]>([]);
   const [panel, setPanel] = useState<'ajustes' | 'indice' | null>(null);
+  const [pestana, setPestana] = useState<'indice' | 'marcadores' | 'subrayados'>('indice');
+  const [subrayados, setSubrayados] = useState<Subrayado[]>([]);
+  // Menú flotante: sobre texto recién seleccionado (nuevo) o sobre un subrayado existente (id).
+  const [menu, setMenu] = useState<{ posicion: PosicionMenu; nuevo?: { cfi: string; texto: string }; id?: string } | null>(null);
+  const [notaAbierta, setNotaAbierta] = useState<string | null>(null); // id del subrayado cuya nota se edita
   const [inmersivo, setInmersivo] = useState(false);
   const [arrastre, setArrastre] = useState<number | null>(null); // valor de la barra mientras se arrastra
 
@@ -223,6 +230,8 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   const deslizo = useRef(false);
   // Se cumple cuando ya se ve la primera página: recién ahí arrancan los cálculos pesados.
   const primeraVista = useRef(crearAviso());
+  const subrayadosRef = useRef<Subrayado[]>([]); // copia para epub.js, que no ve el estado de React
+  const clicEnSubrayado = useRef(0); // momento del último toque sobre un subrayado
 
   /* ---------- 1. Abrir el libro ---------- */
   useEffect(() => {
@@ -247,6 +256,8 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
       const plano = aplanarIndice(book, navegacion.toc as NavItemSimple[]);
       setMeta(m);
       setMarcadores(m.bookmarks);
+      setSubrayados(m.highlights);
+      subrayadosRef.current = m.highlights;
       setIndice(plano);
       if (m.locations) {
         book.locations.load(m.locations);
@@ -310,7 +321,16 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
 
   /* ---------- 3. Mostrar el libro (se rehace al cambiar medidas o tipografía) ---------- */
   // Las funciones de eventos cambian en cada dibujo; epub.js siempre llama a la última versión.
-  const eventos = useRef({ alReubicar: (_: unknown) => {}, alTeclear: (_: KeyboardEvent) => {}, alClic: (_: MouseEvent) => {}, despertar: () => {}, alTocar: (_: TouchEvent) => {}, alSoltar: (_: TouchEvent) => {} });
+  const eventos = useRef({
+    alReubicar: (_: unknown) => {},
+    alTeclear: (_: KeyboardEvent) => {},
+    alClic: (_: MouseEvent) => {},
+    despertar: () => {},
+    alTocar: (_: TouchEvent) => {},
+    alSoltar: (_: TouchEvent) => {},
+    alSeleccionar: (_cfi: string, _contents: { window: Window }) => {},
+    alTocarSubrayado: (_id: string, _e: Event) => {},
+  });
 
   useEffect(() => {
     const book = bookRef.current, visor = visorRef.current;
@@ -349,6 +369,10 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
     rendition.on('mousemove', () => eventos.current.despertar());
     rendition.on('touchstart', (e: TouchEvent) => eventos.current.alTocar(e));
     rendition.on('touchend', (e: TouchEvent) => eventos.current.alSoltar(e));
+    rendition.on('selected', (cfi: string, contents: { window: Window }) => eventos.current.alSeleccionar(cfi, contents));
+
+    // Los subrayados guardados se dibujan solos cuando aparece su capítulo.
+    for (const s of subrayadosRef.current) dibujarSubrayado(rendition, s);
 
     rendition
       .display(cfiActual.current ?? undefined)
@@ -382,6 +406,12 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
     for (const c of contenidos) {
       const estilo = c.document?.getElementById('lecb-colores');
       if (estilo) estilo.textContent = cssColores(prefs.tema);
+    }
+    // En el tema noche los subrayados se pintan distinto (sobre fondo oscuro).
+    const r = renditionRef.current;
+    if (r) for (const s of subrayadosRef.current) {
+      quitarSubrayado(r, s);
+      dibujarSubrayado(r, s);
     }
   }, [prefs.tema]);
 
@@ -438,6 +468,10 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
       setPanel(null);
       return;
     }
+    if (menu) {
+      cerrarMenu();
+      return;
+    }
     const r = libroRef.current?.getBoundingClientRect();
     if (!r) return;
     const rel = (x - r.left) / r.width;
@@ -470,7 +504,10 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
     } else if (['ArrowLeft', 'PageUp'].includes(e.key)) {
       e.preventDefault();
       ir(-1);
-    } else if (e.key === 'Escape') setPanel(null);
+    } else if (e.key === 'Escape') {
+      setPanel(null);
+      cerrarMenu();
+    }
   }
   useEffect(() => {
     const f = (e: KeyboardEvent) => eventos.current.alTeclear(e);
@@ -517,12 +554,128 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
       if (destino?.closest?.('a')) return;
       if (e.view?.getSelection()?.toString()) return;
       const marco = (e.view?.frameElement as HTMLElement | null)?.getBoundingClientRect();
-      tocarEn((marco?.left ?? 0) + e.clientX);
+      const x = (marco?.left ?? 0) + e.clientX;
+      // Esperamos un instante: si el toque fue sobre un subrayado, se abre su menú en vez de pasar de página.
+      setTimeout(() => {
+        if (Date.now() - clicEnSubrayado.current > 800) tocarEn(x);
+      }, 0);
     },
     despertar,
     alTocar: (e: TouchEvent) => inicioToque(e.changedTouches[0].clientX, e.changedTouches[0].clientY),
     alSoltar: (e: TouchEvent) => finToque(e.changedTouches[0].clientX, e.changedTouches[0].clientY),
+    alSeleccionar,
+    alTocarSubrayado,
   };
+
+  /* ---------- subrayados ---------- */
+  function dibujarSubrayado(r: Rendition, s: Subrayado) {
+    const noche = temaActual.current === 'noche';
+    r.annotations.highlight(
+      s.cfi,
+      { id: s.id },
+      (e: Event) => eventos.current.alTocarSubrayado(s.id, e),
+      'lecb-subrayado',
+      {
+        fill: COLORES_SUBRAYADO[s.color].color,
+        'fill-opacity': noche ? '0.28' : '0.42',
+        'mix-blend-mode': noche ? 'normal' : 'multiply',
+      },
+    );
+  }
+
+  function quitarSubrayado(r: Rendition, s: Subrayado) {
+    r.annotations.remove(s.cfi, 'highlight');
+  }
+
+  function guardarSubrayados(nuevos: Subrayado[]) {
+    subrayadosRef.current = nuevos;
+    setSubrayados(nuevos);
+    updateBook(bookId, { highlights: nuevos });
+  }
+
+  function limpiarSeleccion() {
+    const contenidos = (renditionRef.current?.getContents() ?? []) as unknown as { window: Window }[];
+    for (const c of contenidos) c.window?.getSelection()?.removeAllRanges();
+  }
+
+  function cerrarMenu() {
+    setMenu(null);
+    limpiarSeleccion();
+  }
+
+  // Seleccionaron texto en el libro: mostramos el menú encima.
+  function alSeleccionar(cfi: string, contents: { window: Window }) {
+    const seleccion = contents.window.getSelection();
+    const texto = seleccion?.toString().replace(/\s+/g, ' ').trim() ?? '';
+    if (!seleccion || !texto || seleccion.rangeCount === 0) return;
+    const rect = seleccion.getRangeAt(0).getBoundingClientRect();
+    const marco = (contents.window.frameElement as HTMLElement | null)?.getBoundingClientRect();
+    const dx = marco?.left ?? 0, dy = marco?.top ?? 0;
+    setMenu({
+      posicion: { x: dx + rect.left + rect.width / 2, arriba: dy + rect.top, abajo: dy + rect.bottom },
+      nuevo: { cfi, texto },
+    });
+  }
+
+  // Tocaron un subrayado existente: menú para cambiar color, nota o borrarlo.
+  function alTocarSubrayado(id: string, e: Event) {
+    clicEnSubrayado.current = Date.now();
+    const rect = (e.currentTarget as Element | null)?.getBoundingClientRect();
+    if (!rect) return;
+    setMenu({ posicion: { x: rect.left + rect.width / 2, arriba: rect.top, abajo: rect.bottom }, id });
+  }
+
+  function crearSubrayado(color: ColorSubrayado, conNota = false) {
+    const r = renditionRef.current;
+    if (!r || !menu?.nuevo) return;
+    const nuevo: Subrayado = {
+      id: crypto.randomUUID(),
+      cfi: menu.nuevo.cfi,
+      texto: menu.nuevo.texto,
+      color,
+      nota: null,
+      etiqueta: capitulo?.label ?? '',
+      pagina: bookRef.current && paginas ? numeroPagina(bookRef.current, menu.nuevo.cfi) : null,
+      creado: Date.now(),
+    };
+    guardarSubrayados([...subrayados, nuevo].sort((a, b) => compararCfi(a.cfi, b.cfi)));
+    dibujarSubrayado(r, nuevo);
+    cerrarMenu();
+    if (conNota) setNotaAbierta(nuevo.id);
+  }
+
+  function cambiarColor(id: string, color: ColorSubrayado) {
+    const r = renditionRef.current;
+    const viejo = subrayados.find((s) => s.id === id);
+    if (!r || !viejo) return;
+    const nuevo = { ...viejo, color };
+    quitarSubrayado(r, viejo);
+    dibujarSubrayado(r, nuevo);
+    guardarSubrayados(subrayados.map((s) => (s.id === id ? nuevo : s)));
+    setMenu(null);
+  }
+
+  function borrarSubrayado(id: string) {
+    const s = subrayados.find((x) => x.id === id);
+    if (!s) return;
+    if (s.nota && !confirm('Este subrayado tiene una nota. ¿Borrar los dos?')) return;
+    if (renditionRef.current) quitarSubrayado(renditionRef.current, s);
+    guardarSubrayados(subrayados.filter((x) => x.id !== id));
+    setMenu(null);
+  }
+
+  function guardarNota(id: string, nota: string) {
+    guardarSubrayados(subrayados.map((s) => (s.id === id ? { ...s, nota: nota.trim() || null } : s)));
+    setNotaAbierta(null);
+  }
+
+  function copiarSeleccion() {
+    if (menu?.nuevo) navigator.clipboard?.writeText(menu.nuevo.texto).catch(() => {});
+    cerrarMenu();
+  }
+
+  const subrayadoDelMenu = menu?.id ? subrayados.find((s) => s.id === menu.id) ?? null : null;
+  const subrayadoConNota = notaAbierta ? subrayados.find((s) => s.id === notaAbierta) ?? null : null;
 
   /* ---------- marcadores ---------- */
   const marcadoresAqui = pos
@@ -702,52 +855,96 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
         <div className="cajon-cab">
           <div>
             <p className="cajon-sup">{meta?.title}</p>
-            <h2>Índice</h2>
+            <h2>{{ indice: 'Índice', marcadores: 'Marcadores', subrayados: 'Subrayados' }[pestana]}</h2>
           </div>
-          <button className="btn-l" onClick={() => setPanel(null)} aria-label="Cerrar índice">
+          <button className="btn-l" onClick={() => setPanel(null)} aria-label="Cerrar">
             <Cerrar />
           </button>
         </div>
-        {indice.length === 0 ? (
-          <p className="vacio">Este libro no trae índice.</p>
-        ) : (
-          <ol className="lista">
-            {indice.map((item, i) => {
-              const pag = paginaDeItem(i);
-              return (
-                <li key={`${item.href}-${i}`}>
-                  <button
-                    className={`item ${item === capitulo ? 'actual' : ''}`}
-                    style={{ paddingLeft: item.nivel * 16 }}
-                    onClick={() => irA(item.href)}
-                  >
-                    <span className="tit">{item.label}</span>
-                    <span className="lider" />
-                    <span className="pag">{pag ?? ''}</span>
-                  </button>
-                </li>
-              );
-            })}
-          </ol>
-        )}
-        <h3>Marcadores</h3>
-        {marcadores.length === 0 ? (
-          <p className="vacio">Tocá la cinta de arriba para marcar una página.</p>
-        ) : (
-          <ul className="lista">
-            {marcadores.map((m) => (
-              <li key={m.cfi}>
-                <button className="item" onClick={() => irA(m.cfi)}>
-                  <span className="tit">{m.etiqueta || 'Marcador'}</span>
-                  <span className="lider" />
-                  <span className="pag">{m.pagina ?? ''}</span>
-                </button>
-              </li>
+        <div className="pestanas" role="tablist">
+          {(['indice', 'marcadores', 'subrayados'] as const).map((p) => (
+            <button key={p} role="tab" aria-selected={pestana === p} onClick={() => setPestana(p)}>
+              {{ indice: 'Índice', marcadores: 'Marcadores', subrayados: 'Subrayados' }[p]}
+              {p === 'marcadores' && marcadores.length > 0 && <span className="cuenta">{marcadores.length}</span>}
+              {p === 'subrayados' && subrayados.length > 0 && <span className="cuenta">{subrayados.length}</span>}
+            </button>
+          ))}
+        </div>
+        {pestana === 'indice' &&
+            (indice.length === 0 ? (
+              <p className="vacio">Este libro no trae índice.</p>
+            ) : (
+              <ol className="lista">
+                {indice.map((item, i) => {
+                  const pag = paginaDeItem(i);
+                  return (
+                    <li key={`${item.href}-${i}`}>
+                      <button
+                        className={`item ${item === capitulo ? 'actual' : ''}`}
+                        style={{ paddingLeft: item.nivel * 16 }}
+                        onClick={() => irA(item.href)}
+                      >
+                        <span className="tit">{item.label}</span>
+                        <span className="lider" />
+                        <span className="pag">{pag ?? ''}</span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ol>
             ))}
-          </ul>
+        {pestana === 'marcadores' &&
+            (marcadores.length === 0 ? (
+              <p className="vacio">Tocá la cinta de arriba para marcar una página.</p>
+            ) : (
+              <ul className="lista">
+                {marcadores.map((m) => (
+                  <li key={m.cfi}>
+                    <button className="item" onClick={() => irA(m.cfi)}>
+                      <span className="tit">{m.etiqueta || 'Marcador'}</span>
+                      <span className="lider" />
+                      <span className="pag">{m.pagina ?? ''}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            ))}
+        {pestana === 'subrayados' && (
+          <ListaSubrayados
+            subrayados={subrayados}
+            onIr={(sub) => irA(sub.cfi)}
+            onNota={(sub) => setNotaAbierta(sub.id)}
+            onBorrar={(sub) => borrarSubrayado(sub.id)}
+            onExportar={() => meta && descargarSubrayados(meta, subrayados)}
+          />
         )}
       </aside>
       <div className={`velo ${panel === 'indice' ? 'visible' : ''}`} onClick={() => setPanel(null)} />
+
+      {menu && (
+        <MenuSubrayado
+          posicion={menu.posicion}
+          colorActual={subrayadoDelMenu?.color ?? null}
+          tieneNota={!!subrayadoDelMenu?.nota}
+          onColor={(c) => (subrayadoDelMenu ? cambiarColor(subrayadoDelMenu.id, c) : crearSubrayado(c))}
+          onNota={() => {
+            if (subrayadoDelMenu) {
+              setNotaAbierta(subrayadoDelMenu.id);
+              setMenu(null);
+            } else crearSubrayado('amarillo', true);
+          }}
+          onCopiar={menu.nuevo ? copiarSeleccion : undefined}
+          onBorrar={subrayadoDelMenu ? () => borrarSubrayado(subrayadoDelMenu.id) : undefined}
+        />
+      )}
+      {subrayadoConNota && (
+        <EditorNota
+          texto={subrayadoConNota.texto}
+          notaInicial={subrayadoConNota.nota ?? ''}
+          onGuardar={(nota) => guardarNota(subrayadoConNota.id, nota)}
+          onCancelar={() => setNotaAbierta(null)}
+        />
+      )}
     </div>
   );
 }

@@ -220,3 +220,98 @@
 @media (prefers-reduced-motion: reduce) {
   .lector * { transition-duration: .01ms !important; }
 }
+
+/* =========================================================
+   SUBRAYADOS Y NOTAS
+   ========================================================= */
+.lector {
+  /* Menú flotante sobre el texto seleccionado */
+  .menu-subrayado {
+    position: fixed; z-index: 40; display: flex; align-items: center; gap: 6px;
+    padding: 6px 8px; border-radius: 999px;
+    background: var(--hoja); color: var(--texto); border: 1px solid var(--ui-borde);
+    box-shadow: 0 12px 30px -10px rgba(0,0,0,.4), 0 2px 6px rgba(0,0,0,.08);
+    animation: aparecer .15s ease-out;
+    font-size: 13px; white-space: nowrap;
+  }
+  .color-subrayado {
+    width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--hoja); cursor: pointer; padding: 0;
+    box-shadow: 0 0 0 1px var(--ui-borde);
+  }
+  .color-subrayado[aria-pressed="true"] { box-shadow: 0 0 0 2px var(--texto); }
+  .menu-sep { width: 1px; height: 20px; background: var(--ui-borde); margin: 0 2px; }
+  .menu-accion { background: none; border: 0; padding: 6px 8px; border-radius: 999px; cursor: pointer; }
+  .menu-accion:hover { background: color-mix(in srgb, var(--acento) 10%, transparent); color: var(--acento); }
+  .peligro { color: #b3402a; }
+  &[data-tema="noche"] .peligro { color: #e58b74; }
+
+  /* Editor de nota */
+  .modal-fondo {
+    position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px;
+    background: rgba(20,15,10,.35); animation: aparecer .15s ease-out;
+  }
+  .modal {
+    width: min(460px, 100%); background: var(--hoja); color: var(--texto);
+    border-radius: 18px; padding: 20px; box-shadow: 0 30px 60px -20px rgba(0,0,0,.5);
+  }
+  .modal-cita {
+    margin: 0 0 14px; padding-left: 12px; border-left: 2px solid var(--acento);
+    font: italic 15px/1.5 var(--f-lectura); color: var(--texto-2);
+  }
+  .modal textarea {
+    width: 100%; resize: vertical; min-height: 110px; padding: 12px; border-radius: 12px;
+    border: 1px solid var(--ui-borde); background: transparent; color: var(--texto);
+    font: 15px/1.5 var(--f-ui);
+  }
+  .modal textarea:focus { outline: 2px solid var(--acento); outline-offset: 0; border-color: transparent; }
+  .modal-botones { display: flex; align-items: center; gap: 8px; margin-top: 14px; }
+  .espacio { flex: 1; }
+  .boton-texto { background: none; border: 0; padding: 8px 10px; border-radius: 10px; cursor: pointer; font-size: 14px; color: var(--texto-2); }
+  .boton-texto:hover { color: var(--texto); background: color-mix(in srgb, var(--texto) 6%, transparent); }
+  .boton-texto.peligro { color: #b3402a; }
+  .boton-lleno {
+    border: 0; padding: 9px 18px; border-radius: 999px; cursor: pointer; font-size: 14px; font-weight: 500;
+    background: var(--acento); color: #fff;
+  }
+
+  /* Pestañas del cajón */
+  .pestanas { display: flex; gap: 4px; margin: -8px 0 16px; border-bottom: 1px solid var(--ui-borde); }
+  .pestanas button {
+    background: none; border: 0; padding: 10px 10px 12px; cursor: pointer; font-size: 13.5px; color: var(--texto-2);
+    border-bottom: 2px solid transparent; margin-bottom: -1px; display: flex; align-items: center; gap: 6px;
+  }
+  .pestanas button[aria-selected="true"] { color: var(--texto); border-bottom-color: var(--acento); font-weight: 500; }
+  .cuenta {
+    font-size: 11px; min-width: 18px; height: 18px; padding: 0 5px; border-radius: 9px; display: inline-grid; place-items: center;
+    background: color-mix(in srgb, var(--acento) 14%, transparent); color: var(--acento); font-variant-numeric: tabular-nums;
+  }
+
+  /* Lista de subrayados */
+  .boton-exportar {
+    width: 100%; margin-bottom: 8px; padding: 10px; border-radius: 12px; cursor: pointer; font-size: 13.5px;
+    background: none; border: 1px dashed var(--ui-borde); color: var(--texto-2);
+  }
+  .boton-exportar:hover { border-color: var(--acento); color: var(--acento); }
+  .subrayado-item { padding: 14px 0 10px 14px; border-bottom: 1px solid var(--ui-borde); position: relative; }
+  .subrayado-item::before {
+    content: ""; position: absolute; left: 0; top: 16px; bottom: 14px; width: 4px; border-radius: 2px; background: var(--color);
+  }
+  .subrayado-texto {
+    display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden;
+    background: none; border: 0; padding: 0; text-align: left; cursor: pointer;
+    font: 400 15px/1.45 var(--f-lectura); color: var(--texto);
+  }
+  .subrayado-texto:hover { color: var(--acento); }
+  .subrayado-nota {
+    margin: 8px 0 0; padding: 8px 10px; border-radius: 10px; font-size: 13.5px; line-height: 1.45;
+    background: color-mix(in srgb, var(--texto) 5%, transparent); white-space: pre-wrap;
+  }
+  .subrayado-pie { display: flex; align-items: center; gap: 2px; margin-top: 6px; font-size: 12px; color: var(--texto-2); }
+  .subrayado-pie span { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .subrayado-pie .boton-texto { font-size: 12px; padding: 4px 6px; }
+}
+
+/* solo opacidad: el menú ya usa transform para centrarse */
+@keyframes aparecer {
+  from { opacity: 0; }
+}
