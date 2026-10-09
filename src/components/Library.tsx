@@ -1,125 +1,346 @@
-// Pantalla de la biblioteca: portadas de los libros + botón para importar.
-import { useEffect, useRef, useState, type DragEvent } from 'react';
+// Pantalla de inicio y biblioteca (maqueta "inicio.html").
+import { useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import type { BookMeta } from '../db';
+import { colorTexto, hashTexto } from '../colores';
+import { guardarTemaSitio } from '../preferencias';
+import Portada from './Portada';
+import { Cinta, LibroAbierto, Logo, Luna, Subir, Tipografia } from './Iconos';
+import './Library.css';
 
 // "Props": los datos y funciones que App le pasa a este componente.
 interface LibraryProps {
-  books: BookMeta[];
+  books: BookMeta[] | null;
   importing: boolean;
   onImport: (files: File[]) => void;
+  onDemo: () => void;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
 }
 
+type Orden = 'recientes' | 'titulo' | 'autor';
+const ORDENES: Record<Orden, string> = { recientes: 'Recientes', titulo: 'Título', autor: 'Autor' };
+
 const isEpub = (file: File) => file.name.toLowerCase().endsWith('.epub');
 
-export default function Library({ books, importing, onImport, onOpen, onDelete }: LibraryProps) {
+export default function Library({ books, importing, onImport, onDemo, onOpen, onDelete }: LibraryProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const [dragging, setDragging] = useState(false);
+  const [arrastrando, setArrastrando] = useState(false);
+  const [orden, setOrden] = useState<Orden>('recientes');
+  const [editando, setEditando] = useState(false);
 
-  function importFiles(fileList: FileList | null) {
-    const files = Array.from(fileList ?? []).filter(isEpub);
-    if (files.length) onImport(files);
+  const elegirArchivo = () => fileInputRef.current?.click();
+
+  function importarArchivos(fileList: FileList | null) {
+    const todos = Array.from(fileList ?? []);
+    const epubs = todos.filter(isEpub);
+    if (epubs.length) onImport(epubs);
+    else if (todos.length) alert('Solo se pueden importar archivos .epub');
   }
 
-  function handleDrop(e: DragEvent) {
+  // Arrastrar archivos funciona en toda la página, no solo en la zona de subir.
+  function alSoltar(e: DragEvent) {
     e.preventDefault();
-    setDragging(false);
-    importFiles(e.dataTransfer.files);
+    setArrastrando(false);
+    importarArchivos(e.dataTransfer.files);
   }
+
+  function cambiarTema() {
+    const r = document.documentElement;
+    const oscuroAhora = r.dataset.theme
+      ? r.dataset.theme === 'dark'
+      : matchMedia('(prefers-color-scheme: dark)').matches;
+    const nuevo = oscuroAhora ? 'light' : 'dark';
+    r.dataset.theme = nuevo;
+    guardarTemaSitio(nuevo);
+  }
+
+  const vacia = books !== null && books.length === 0;
+  const leyendo = (books ?? []).filter((b) => b.lastOpenedAt !== null).slice(0, 3);
+  const estante = [...(books ?? [])].sort((a, b) =>
+    orden === 'titulo' ? a.title.localeCompare(b.title)
+    : orden === 'autor' ? a.author.localeCompare(b.author)
+    : 0, // "recientes": ya vienen ordenados así
+  );
 
   return (
     <div
-      className={`library ${dragging ? 'library--dragging' : ''}`}
+      className="inicio"
       onDragOver={(e) => {
         e.preventDefault();
-        setDragging(true);
+        setArrastrando(true);
       }}
-      onDragLeave={() => setDragging(false)}
-      onDrop={handleDrop}
+      onDragLeave={(e) => {
+        if (e.relatedTarget === null) setArrastrando(false); // salió de la ventana
+      }}
+      onDrop={alSoltar}
     >
-      <header className="library__header">
-        <h1>Mi biblioteca</h1>
-        <button
-          className="button"
-          onClick={() => fileInputRef.current?.click()}
-          disabled={importing}
-        >
-          {importing ? 'Importando…' : '+ Importar libro'}
-        </button>
-        {/* Input de archivo oculto: el botón de arriba lo abre */}
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".epub,application/epub+zip"
-          multiple
-          hidden
-          onChange={(e) => {
-            importFiles(e.target.files);
-            e.target.value = ''; // permite volver a elegir el mismo archivo
-          }}
-        />
+      {/* Input de archivo oculto: los botones "Subir" lo abren */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept=".epub,application/epub+zip"
+        multiple
+        hidden
+        onChange={(e) => {
+          importarArchivos(e.target.files);
+          e.target.value = ''; // permite volver a elegir el mismo archivo
+        }}
+      />
+
+      {/* ================= NAV ================= */}
+      <header className="nav">
+        <div className="contenedor nav-in">
+          <a className="logo" href="#">
+            <Logo />
+            LECB
+          </a>
+          <nav className="nav-links">
+            {!vacia && <a href="#biblioteca">Biblioteca</a>}
+            {!vacia && <a href="#estanteria">Estantería</a>}
+            <a href="#como">Cómo funciona</a>
+          </nav>
+          <div className="nav-acc">
+            <button className="btn-icono" onClick={cambiarTema} aria-label="Cambiar tema claro u oscuro">
+              <Luna />
+            </button>
+            <button className="btn btn-primario btn-chico" onClick={elegirArchivo} disabled={importing}>
+              {importing ? 'Importando…' : 'Subir EPUB'}
+            </button>
+          </div>
+        </div>
       </header>
 
-      {books.length === 0 ? (
-        <div className="library__empty">
-          <p>Todavía no tienes libros.</p>
-          <p>Importa un archivo EPUB o arrástralo a esta ventana.</p>
-          <p className="library__note">Tus libros se guardan solo en este navegador.</p>
+      <main>
+        {/* ================= HERO (solo con la biblioteca vacía) ================= */}
+        {vacia && <Hero onSubir={elegirArchivo} onDemo={onDemo} importing={importing} />}
+
+        {/* ================= SEGUIR LEYENDO ================= */}
+        {leyendo.length > 0 && (
+          <section className="seccion" id="biblioteca">
+            <div className="contenedor">
+              <div className="seccion-cab">
+                <h2 className="titulo-seccion">Seguir leyendo</h2>
+                <a href="#estanteria">Ver toda la biblioteca</a>
+              </div>
+              <div className={`grid-seguir grid-seguir-${leyendo.length}`}>
+                {leyendo.map((book, i) => (
+                  <TarjetaLectura key={book.id} book={book} destacada={i === 0} onOpen={() => onOpen(book.id)} />
+                ))}
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ================= ESTANTERÍA ================= */}
+        {estante.length > 0 && (
+          <section className="seccion" id="estanteria">
+            <div className="contenedor">
+              <div className="seccion-cab">
+                <h2 className="titulo-seccion">Tu estantería</h2>
+                <div className="seccion-acc">
+                  <button
+                    className="enlace"
+                    onClick={() => setOrden(orden === 'recientes' ? 'titulo' : orden === 'titulo' ? 'autor' : 'recientes')}
+                  >
+                    Orden: {ORDENES[orden]}
+                  </button>
+                  <button className="enlace" onClick={() => setEditando(!editando)}>
+                    {editando ? 'Listo' : 'Editar'}
+                  </button>
+                </div>
+              </div>
+              {editando && <p className="aviso-edicion">Tocá la × de un libro para quitarlo de tu estantería.</p>}
+              <div className="estante-wrap">
+                <div className="estante">
+                  {estante.map((book) => (
+                    <Lomo
+                      key={book.id}
+                      book={book}
+                      editando={editando}
+                      onOpen={() => onOpen(book.id)}
+                      onDelete={() => {
+                        if (confirm(`¿Quitar "${book.title}" de tu estantería?`)) onDelete(book.id);
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            </div>
+          </section>
+        )}
+
+        {/* ================= SUBIR ================= */}
+        <section className="seccion" id="subir">
+          <div className="contenedor">
+            <div
+              className={`subir ${arrastrando ? 'activo' : ''}`}
+              onClick={elegirArchivo}
+              role="button"
+              tabIndex={0}
+              onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && elegirArchivo()}
+            >
+              <span className="subir-icono"><Subir /></span>
+              <h2>{importing ? 'Importando…' : 'Arrastrá tu archivo .epub acá'}</h2>
+              <p>Lo agregamos a tu estantería y lo abrimos donde lo dejaste.</p>
+              <span className="btn btn-primario">Elegir archivo</span>
+              <small>EPUB 2 y 3 · hasta 100 MB · tus libros quedan solo en este navegador</small>
+            </div>
+          </div>
+        </section>
+
+        {/* ================= CÓMO FUNCIONA ================= */}
+        <section className="seccion" id="como">
+          <div className="contenedor">
+            <div className="seccion-cab">
+              <h2 className="titulo-seccion">Pensado para leer, no para mirar pantallas</h2>
+            </div>
+            <div className="caracts">
+              <div className="caract">
+                <div className="caract-ico"><LibroAbierto /></div>
+                <h3>Formato libro de verdad</h3>
+                <p>Doble página, lomo, cabeceras y números de página. Como abrir un libro.</p>
+              </div>
+              <div className="caract">
+                <div className="caract-ico"><Tipografia /></div>
+                <h3>Tu tipografía, tu luz</h3>
+                <p>Temas papel, sepia y noche. Tres familias tipográficas, tamaño e interlineado a tu medida.</p>
+              </div>
+              <div className="caract">
+                <div className="caract-ico"><Cinta /></div>
+                <h3>Marcadores con cinta</h3>
+                <p>Marcá páginas, volvé al índice cuando quieras y retomá siempre donde lo dejaste.</p>
+              </div>
+            </div>
+            <p className="ornamento">❦</p>
+          </div>
+        </section>
+      </main>
+
+      <footer className="pie">
+        <div className="contenedor">
+          <span>LECB — tus libros no salen de tu navegador</span>
+          <span>Fraunces · Literata · Inter</span>
         </div>
-      ) : (
-        <ul className="library__grid">
-          {books.map((book) => (
-            <BookCard
-              key={book.id}
-              book={book}
-              onOpen={() => onOpen(book.id)}
-              onDelete={() => {
-                if (confirm(`¿Eliminar "${book.title}" de tu biblioteca?`)) onDelete(book.id);
-              }}
-            />
-          ))}
-        </ul>
+      </footer>
+    </div>
+  );
+}
+
+function Hero({ onSubir, onDemo, importing }: { onSubir: () => void; onDemo: () => void; importing: boolean }) {
+  return (
+    <section className="hero">
+      <div className="contenedor hero-in">
+        <div>
+          <p className="eyebrow">Lector de EPUB</p>
+          <h1>
+            Leer como en papel, <em>en cualquier pantalla.</em>
+          </h1>
+          <p className="hero-sub">
+            Subí tus libros y leelos a doble página, con márgenes de verdad, tu tipografía favorita y la luz que te
+            quede cómoda.
+          </p>
+          <div className="hero-cta">
+            <button className="btn btn-primario" onClick={onSubir} disabled={importing}>
+              Subir mi primer libro
+            </button>
+            <button className="btn btn-secundario" onClick={onDemo} disabled={importing}>
+              Probar con Don Quijote →
+            </button>
+          </div>
+          <p className="hero-nota">Compatible con EPUB 2 y 3 · En la compu y en el celu</p>
+        </div>
+
+        {/* Ilustración decorativa: libro abierto y dos tapas */}
+        <div className="hero-arte" aria-hidden="true">
+          <div className="portada t1" style={{ '--c': '#1f2a44', '--t': '#e9dfcd' } as CSSProperties}>
+            <span className="pt-autor">Leopoldo Alas «Clarín»</span>
+            <span className="pt-titulo">La <em>Regenta</em></span>
+            <span className="pt-inicial">R</span>
+          </div>
+          <div className="mini-libro">
+            <div className="mini-pag">
+              <div className="mini-cab">Miguel de Cervantes</div>
+              <div className="mini-renglones">
+                {Array.from({ length: 14 }, (_, i) => <i key={i} className={i === 9 ? 'corto' : ''} />)}
+              </div>
+              <span className="mini-folio">12</span>
+            </div>
+            <div className="mini-pag">
+              <div className="mini-num">Capítulo II</div>
+              <div className="mini-tit">La primera salida</div>
+              <div className="mini-renglones">
+                <div className="capital"><b>H</b><span><i /><i /><i /></span></div>
+                {Array.from({ length: 8 }, (_, i) => <i key={i} className={i === 5 ? 'corto' : ''} />)}
+              </div>
+              <span className="mini-folio">13</span>
+              <span className="mini-cinta" />
+            </div>
+          </div>
+          <div className="portada t2" style={{ '--c': '#2f4a3a', '--t': '#e2cf8d' } as CSSProperties}>
+            <span className="pt-autor">Benito Pérez Galdós</span>
+            <span className="pt-titulo">Mariane&shy;la</span>
+            <span className="pt-reglas" />
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function TarjetaLectura({ book, destacada, onOpen }: { book: BookMeta; destacada: boolean; onOpen: () => void }) {
+  const porcentaje = Math.round(book.progress * 100);
+  const pagina = book.page && book.pages ? `Pág. ${book.page} de ${book.pages}` : 'Empezado';
+  return (
+    <button className={`tarjeta ${destacada ? 'destacada' : ''}`} onClick={onOpen}>
+      <Portada book={book} />
+      <div className="tarjeta-info">
+        <h3>{book.title}</h3>
+        <p className="autor">{book.author}</p>
+        {destacada && book.excerpt && (
+          <p className="cita">
+            <small>Te quedaste en</small>«…{book.excerpt}…»
+          </p>
+        )}
+        <div className="progreso">
+          <div className="barra-prog">
+            <span style={{ width: `${porcentaje}%` }} />
+          </div>
+          <div className="meta">
+            <span>{pagina}</span>
+            <span>{porcentaje} %</span>
+          </div>
+        </div>
+        {destacada && <span className="btn btn-primario">Continuar leyendo</span>}
+      </div>
+    </button>
+  );
+}
+
+function Lomo({ book, editando, onOpen, onDelete }: { book: BookMeta; editando: boolean; onOpen: () => void; onDelete: () => void }) {
+  // Grosor según el tamaño del archivo y alto variable, para que el estante no se vea uniforme.
+  const ancho = book.size ? Math.min(56, Math.max(28, 24 + Math.sqrt(book.size / 1e6) * 14)) : 40;
+  const alto = 68 + (hashTexto(book.title) % 26);
+  const estilo = { '--c': book.color, '--t': colorTexto(book.color), '--w': `${ancho}px`, '--h': `${alto}%` } as CSSProperties;
+
+  return (
+    <div className="lomo-wrap" style={estilo}>
+      <button className="lomo" onClick={onOpen} title={`${book.title} — ${book.author}`} disabled={editando}>
+        <span className="lt">{book.title}</span>
+        <span className="la">{apellido(book.author)}</span>
+      </button>
+      {editando && (
+        <button className="lomo-quitar" onClick={onDelete} aria-label={`Quitar ${book.title}`}>
+          ×
+        </button>
       )}
     </div>
   );
 }
 
-function BookCard({ book, onOpen, onDelete }: { book: BookMeta; onOpen: () => void; onDelete: () => void }) {
-  // La portada está guardada como Blob; creamos una URL temporal para poder mostrarla
-  // y la liberamos cuando el componente desaparece.
-  const [coverUrl, setCoverUrl] = useState<string | null>(null);
-  useEffect(() => {
-    if (!book.cover) return;
-    const url = URL.createObjectURL(book.cover);
-    setCoverUrl(url);
-    return () => URL.revokeObjectURL(url);
-  }, [book.cover]);
-
-  const percent = Math.round(book.progress * 100);
-
-  return (
-    <li className="book-card">
-      <button className="book-card__cover" onClick={onOpen} title={`Leer "${book.title}"`}>
-        {coverUrl ? (
-          <img src={coverUrl} alt="" />
-        ) : (
-          <span className="book-card__placeholder">{book.title}</span>
-        )}
-      </button>
-      <div className="book-card__info">
-        <strong className="book-card__title">{book.title}</strong>
-        <span className="book-card__author">{book.author}</span>
-        <div className="progress" aria-label={`Leído ${percent}%`}>
-          <div className="progress__bar" style={{ width: `${percent}%` }} />
-        </div>
-        <div className="book-card__footer">
-          <span>{percent > 0 ? `${percent}%` : 'Sin empezar'}</span>
-          <button className="link-button" onClick={onDelete}>
-            Eliminar
-          </button>
-        </div>
-      </div>
-    </li>
-  );
+// "Miguel de Cervantes Saavedra" → "Cervantes Saavedra"; "Cervantes, Miguel de" → "Cervantes".
+function apellido(autor: string) {
+  if (autor.includes(',')) return autor.split(',')[0].trim();
+  const partes = autor.trim().split(/\s+/);
+  const i = partes.findIndex((p, j) => j > 0 && /^(de|del|y)$/i.test(p));
+  return i > 0 ? partes.slice(i + 1).join(' ') : partes[partes.length - 1];
 }

@@ -1,6 +1,14 @@
 // Base de datos local del navegador (IndexedDB).
 // Los libros del usuario se guardan aquí y NUNCA se suben a ningún servidor.
 import { openDB, type DBSchema } from 'idb';
+import { colorDeRespaldo } from './colores';
+
+export interface Marcador {
+  cfi: string; // posición exacta en el libro
+  etiqueta: string; // capítulo donde está
+  pagina: number | null;
+  creado: number;
+}
 
 // Datos de cada libro que mostramos en la biblioteca.
 export interface BookMeta {
@@ -8,10 +16,18 @@ export interface BookMeta {
   title: string;
   author: string;
   cover: Blob | null; // imagen de portada
+  color: string; // color del lomo y de la tapa generada
+  size: number; // tamaño del archivo en bytes (define el grosor del lomo)
   addedAt: number; // fecha en que se importó (milisegundos)
   lastOpenedAt: number | null;
   location: string | null; // posición de lectura (CFI, el "marcapáginas" de los EPUB)
   progress: number; // de 0 a 1
+  page: number | null; // página aproximada donde quedó
+  pages: number | null; // total de páginas aproximadas
+  excerpt: string | null; // frase donde quedó ("Te quedaste en…")
+  locations: string | null; // páginas calculadas, guardadas para no recalcularlas
+  capitulos: (string | null)[] | null; // dónde empieza cada entrada del índice (CFI)
+  bookmarks: Marcador[];
 }
 
 // Guardamos el archivo EPUB aparte para que listar la biblioteca sea liviano.
@@ -27,8 +43,29 @@ const dbPromise = openDB<LibraryDB>('biblioteca', 1, {
   },
 });
 
+// Los libros importados en la Fase 1 no tienen los campos nuevos: los completamos.
+function completar(book: Partial<BookMeta> & { id: string; title: string }): BookMeta {
+  return {
+    author: 'Autor desconocido',
+    cover: null,
+    color: colorDeRespaldo(book.title),
+    size: 0,
+    addedAt: Date.now(),
+    lastOpenedAt: null,
+    location: null,
+    progress: 0,
+    page: null,
+    pages: null,
+    excerpt: null,
+    locations: null,
+    capitulos: null,
+    bookmarks: [],
+    ...book,
+  };
+}
+
 export async function getAllBooks(): Promise<BookMeta[]> {
-  const books = await (await dbPromise).getAll('books');
+  const books = (await (await dbPromise).getAll('books')).map(completar);
   // Primero los leídos más recientemente, después los recién importados.
   return books.sort(
     (a, b) => (b.lastOpenedAt ?? b.addedAt) - (a.lastOpenedAt ?? a.addedAt),
@@ -36,7 +73,8 @@ export async function getAllBooks(): Promise<BookMeta[]> {
 }
 
 export async function getBook(id: string) {
-  return (await dbPromise).get('books', id);
+  const book = await (await dbPromise).get('books', id);
+  return book && completar(book);
 }
 
 export async function getBookFile(id: string) {
@@ -54,10 +92,13 @@ export async function addBook(meta: BookMeta, data: ArrayBuffer) {
   ]);
 }
 
+// Leer y escribir dentro de la misma transacción: si llegan dos cambios a la vez
+// (por ejemplo la página y la frase), el segundo no pisa al primero con datos viejos.
 export async function updateBook(id: string, changes: Partial<BookMeta>) {
-  const db = await dbPromise;
-  const book = await db.get('books', id);
-  if (book) await db.put('books', { ...book, ...changes });
+  const tx = (await dbPromise).transaction('books', 'readwrite');
+  const book = await tx.store.get(id);
+  if (book) await tx.store.put({ ...completar(book), ...changes });
+  await tx.done;
 }
 
 export async function deleteBook(id: string) {

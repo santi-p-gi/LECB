@@ -1,46 +1,82 @@
 // Componente principal: decide si mostramos la biblioteca o el lector.
 import { useEffect, useState } from 'react';
 import { addBook, deleteBook, getAllBooks, type BookMeta } from './db';
-import { readEpubInfo } from './epub';
+import { readEpubInfo, TAMANO_MAXIMO } from './epub';
 import Library from './components/Library';
 import Reader from './components/Reader';
 
+const LIBRO_DEMO = '/libros/don-quijote.epub';
+
+// El libro abierto se guarda en la dirección (#/leer/<id>), así el botón "atrás"
+// del navegador vuelve a la biblioteca y al recargar seguimos en el mismo libro.
+const libroEnDireccion = () => location.hash.match(/^#\/leer\/(.+)$/)?.[1] ?? null;
+
 export default function App() {
   // "Estado": datos que, cuando cambian, hacen que React vuelva a dibujar la pantalla.
-  const [books, setBooks] = useState<BookMeta[]>([]);
-  const [openBookId, setOpenBookId] = useState<string | null>(null);
+  const [books, setBooks] = useState<BookMeta[] | null>(null); // null = todavía cargando
+  const [openBookId, setOpenBookId] = useState(libroEnDireccion);
   const [importing, setImporting] = useState(false);
 
   const refreshBooks = () => getAllBooks().then(setBooks);
 
-  // Se ejecuta una vez al cargar la página: lee la biblioteca guardada.
+  // Se ejecuta una vez al cargar la página: lee la biblioteca y escucha los cambios de dirección.
   useEffect(() => {
     refreshBooks();
+    const alCambiar = () => {
+      setOpenBookId(libroEnDireccion());
+      refreshBooks(); // para ver el progreso actualizado al volver
+    };
+    window.addEventListener('hashchange', alCambiar);
+    return () => window.removeEventListener('hashchange', alCambiar);
   }, []);
+
+  const cerrar = () => {
+    if (history.state?.lecbDesdeBiblioteca) history.back();
+    else location.hash = '';
+  };
+
+  // Guarda un archivo en la biblioteca y devuelve su id (o null si falló).
+  async function importar(data: ArrayBuffer, extra: Partial<BookMeta> = {}) {
+    // Le pasamos una copia a epub.js para que el original quede intacto al guardarlo.
+    const info = await readEpubInfo(data.slice(0));
+    const id = crypto.randomUUID();
+    await addBook(
+      {
+        id,
+        ...info,
+        size: data.byteLength,
+        addedAt: Date.now(),
+        lastOpenedAt: null,
+        location: null,
+        progress: 0,
+        page: null,
+        pages: null,
+        excerpt: null,
+        locations: null,
+        capitulos: null,
+        bookmarks: [],
+        ...extra,
+      },
+      data,
+    );
+    return id;
+  }
 
   async function handleImport(files: File[]) {
     setImporting(true);
     const failed: string[] = [];
+    let ultimo: string | null = null;
 
     for (const file of files) {
+      if (file.size > TAMANO_MAXIMO) {
+        failed.push(`${file.name} (pesa más de 100 MB)`);
+        continue;
+      }
       try {
-        const data = await file.arrayBuffer();
-        // Le pasamos una copia a epub.js para que el original quede intacto al guardarlo.
-        const info = await readEpubInfo(data.slice(0));
-        await addBook(
-          {
-            id: crypto.randomUUID(),
-            ...info,
-            addedAt: Date.now(),
-            lastOpenedAt: null,
-            location: null,
-            progress: 0,
-          },
-          data,
-        );
+        ultimo = await importar(await file.arrayBuffer());
       } catch (err) {
         console.error(err);
-        failed.push(file.name);
+        failed.push(`${file.name} (no es un EPUB válido)`);
       }
     }
 
@@ -48,7 +84,33 @@ export default function App() {
     await refreshBooks();
     if (failed.length) {
       alert(`No se pudieron importar estos archivos:\n${failed.join('\n')}`);
+    } else if (files.length === 1 && ultimo) {
+      abrirMarcado(ultimo);
     }
+  }
+
+  // Abre el libro de muestra (dominio público). Si ya está en la biblioteca, lo reutiliza.
+  async function handleDemo() {
+    const existente = books?.find((b) => b.title === 'Don Quijote' && b.author.includes('Cervantes'));
+    if (existente) return abrirMarcado(existente.id);
+    setImporting(true);
+    try {
+      const respuesta = await fetch(LIBRO_DEMO);
+      const id = await importar(await respuesta.arrayBuffer());
+      await refreshBooks();
+      abrirMarcado(id);
+    } catch (err) {
+      console.error(err);
+      alert('No se pudo cargar el libro de muestra.');
+    } finally {
+      setImporting(false);
+    }
+  }
+
+  // Abre el libro recordando que venimos de la biblioteca (para que "volver" use el historial).
+  function abrirMarcado(id: string) {
+    location.hash = `/leer/${id}`;
+    history.replaceState({ lecbDesdeBiblioteca: true }, '');
   }
 
   async function handleDelete(id: string) {
@@ -56,13 +118,8 @@ export default function App() {
     await refreshBooks();
   }
 
-  function handleCloseReader() {
-    setOpenBookId(null);
-    refreshBooks(); // para ver el progreso actualizado
-  }
-
   if (openBookId) {
-    return <Reader bookId={openBookId} onClose={handleCloseReader} />;
+    return <Reader key={openBookId} bookId={openBookId} onClose={cerrar} />;
   }
 
   return (
@@ -70,7 +127,8 @@ export default function App() {
       books={books}
       importing={importing}
       onImport={handleImport}
-      onOpen={setOpenBookId}
+      onDemo={handleDemo}
+      onOpen={abrirMarcado}
       onDelete={handleDelete}
     />
   );
