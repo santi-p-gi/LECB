@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folio — Maqueta inicio</title>
+<!--
+  MAQUETA VISUAL — página de inicio.
+  Solo diseño: no sube archivos ni guarda nada. Sirve como referencia
+  para replicar colores, tipografías, espaciados y componentes.
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..600&family=Inter:wght@400;500;600&family=Literata:opsz,wght@7..72,400..600&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   1. TOKENS (colores, fuentes, radios)
+   ========================================================= */
+:root {
+  --papel: #f5efe3;
+  --papel-2: #ece3d0;
+  --superficie: #fbf8f2;
+  --tinta: #211c16;
+  --tinta-2: #5c5245;
+  --tinta-3: #8a7f6f;
+  --linea: #dacdb4;
+  --acento: #9b3b2a;          /* rojo lacre */
+  --acento-suave: #f1ddd3;
+  --madera: #8a6646;
+  --madera-2: #6e4f35;
+  --sombra: 0 1px 2px rgba(60,40,20,.06), 0 10px 30px -10px rgba(60,40,20,.18);
+
+  --f-display: "Fraunces", Georgia, serif;
+  --f-lectura: "Literata", Georgia, serif;
+  --f-ui: "Inter", system-ui, "Segoe UI", sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --papel: #17140f; --papel-2: #221d17; --superficie: #1d1913;
+    --tinta: #ece4d6; --tinta-2: #b5aa98; --tinta-3: #857a69;
+    --linea: #3a3228; --acento: #e07a5f; --acento-suave: #3a2620;
+    --madera: #4a3626; --madera-2: #36271b;
+    --sombra: 0 1px 2px rgba(0,0,0,.3), 0 12px 30px -10px rgba(0,0,0,.6);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --papel: #17140f; --papel-2: #221d17; --superficie: #1d1913;
+  --tinta: #ece4d6; --tinta-2: #b5aa98; --tinta-3: #857a69;
+  --linea: #3a3228; --acento: #e07a5f; --acento-suave: #3a2620;
+  --madera: #4a3626; --madera-2: #36271b;
+  --sombra: 0 1px 2px rgba(0,0,0,.3), 0 12px 30px -10px rgba(0,0,0,.6);
+  color-scheme: dark;
+}
+
+/* =========================================================
+   2. BASE
+   ========================================================= */
+*, *::before, *::after { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--papel); color: var(--tinta);
+  font: 16px/1.55 var(--f-ui); -webkit-font-smoothing: antialiased;
+}
+a { color: inherit; }
+button { font: inherit; color: inherit; }
+.contenedor { max-width: 1160px; margin: 0 auto; padding: 0 24px; }
+@media (max-width: 600px) { .contenedor { padding: 0 16px; } }
+
+.eyebrow {
+  font: 600 12px/1 var(--f-ui); letter-spacing: .18em; text-transform: uppercase;
+  color: var(--acento); margin: 0 0 20px;
+}
+.titulo-seccion {
+  font: 500 clamp(1.7rem, 3vw, 2.3rem)/1.1 var(--f-display);
+  letter-spacing: -.015em; margin: 0;
+}
+
+/* Botones */
+.btn {
+  display: inline-flex; align-items: center; gap: 8px; height: 48px; padding: 0 22px;
+  border-radius: 999px; border: 1px solid transparent; font-weight: 500; font-size: 15px;
+  text-decoration: none; cursor: pointer; transition: background .2s, color .2s, border-color .2s;
+}
+.btn-primario { background: var(--tinta); color: var(--papel); }
+.btn-primario:hover { background: var(--acento); color: #fff; }
+.btn-secundario { border-color: var(--linea); }
+.btn-secundario:hover { border-color: var(--tinta); }
+.btn-chico { height: 38px; padding: 0 16px; font-size: 14px; }
+.btn-icono {
+  width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center;
+  border: 1px solid var(--linea); background: none; cursor: pointer;
+}
+.btn-icono:hover { background: var(--papel-2); }
+.btn-icono svg { width: 17px; height: 17px; }
+
+/* =========================================================
+   3. PORTADAS GENERADAS (cuando el EPUB no trae tapa)
+   ========================================================= */
+.portada {
+  position: relative; aspect-ratio: 2 / 3; border-radius: 3px 7px 7px 3px;
+  background: var(--c); color: var(--t); overflow: hidden; isolation: isolate;
+  display: flex; flex-direction: column; justify-content: space-between;
+  padding: 16% 12% 13% 17%; container-type: inline-size;
+  box-shadow: 0 1px 1px rgba(0,0,0,.08), 0 14px 28px -12px rgba(40,25,10,.5);
+}
+.portada::before { /* lomo */
+  content: ""; position: absolute; inset: 0 auto 0 0; width: 7%; z-index: 2;
+  background: linear-gradient(to right, rgba(0,0,0,.25), rgba(255,255,255,.14) 55%, rgba(0,0,0,.1));
+}
+.portada::after { /* brillo */
+  content: ""; position: absolute; inset: 0; z-index: 2; pointer-events: none;
+  background: linear-gradient(115deg, rgba(255,255,255,.14), transparent 38%);
+}
+.pt-autor { font: 500 6.5cqi/1.25 var(--f-ui); letter-spacing: .14em; text-transform: uppercase; opacity: .85; }
+.pt-titulo { font: 500 13cqi/1.04 var(--f-display); letter-spacing: -.01em; text-wrap: balance; }
+.pt-titulo em { font-style: italic; font-weight: 400; }
+.pt-marco { position: absolute; inset: 6% 6% 6% 11%; border: 1px solid currentColor; opacity: .35; z-index: -1; }
+.pt-marco::after { content: ""; position: absolute; inset: 3%; border: 1px solid currentColor; }
+.pt-inicial { position: absolute; right: -4%; bottom: -16%; z-index: -1; font: italic 400 95cqi/1 var(--f-display); opacity: .13; }
+.pt-reglas { height: 16%; opacity: .45; background: repeating-linear-gradient(currentColor 0 1px, transparent 1px 7cqi); }
+.pt-sol { position: absolute; width: 70%; aspect-ratio: 1; border-radius: 50%; right: -18%; top: 34%; background: currentColor; opacity: .16; z-index: -1; }
+
+.p-quijote   { --c: #9b3b2a; --t: #f6e8d6; }
+.p-marianela { --c: #2f4a3a; --t: #e2cf8d; }
+.p-regenta   { --c: #1f2a44; --t: #e9dfcd; }
+.p-rimas     { --c: #e6d8bd; --t: #2b2219; }
+.p-niebla    { --c: #6d7a80; --t: #f2f0ea; background: linear-gradient(170deg, #97a3a8, #55626a); }
+.p-fierro    { --c: #c08f42; --t: #2a1f12; }
+
+/* =========================================================
+   4. NAVEGACIÓN
+   ========================================================= */
+.nav {
+  position: sticky; top: 0; z-index: 10;
+  background: color-mix(in srgb, var(--papel) 86%, transparent);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--linea);
+}
+.nav-in { display: flex; align-items: center; gap: 32px; height: 68px; }
+.logo { display: flex; align-items: center; gap: 10px; text-decoration: none; font: 600 22px/1 var(--f-display); letter-spacing: -.01em; }
+.logo svg { width: 28px; height: 28px; color: var(--acento); }
+.nav-links { display: flex; gap: 28px; margin-right: auto; }
+.nav-links a { text-decoration: none; font-size: 14.5px; color: var(--tinta-2); }
+.nav-links a:hover { color: var(--tinta); }
+.nav-acc { display: flex; gap: 10px; align-items: center; }
+@media (max-width: 700px) { .nav-links { display: none; } .nav-acc { margin-left: auto; } }
+
+/* =========================================================
+   5. HERO
+   ========================================================= */
+.hero-in {
+  display: grid; grid-template-columns: 1fr 1.05fr; gap: 64px; align-items: center;
+  padding: 88px 24px 104px;
+}
+.hero h1 {
+  font: 450 clamp(2.5rem, 5.4vw, 4.3rem)/1.02 var(--f-display);
+  letter-spacing: -.025em; margin: 0 0 24px; text-wrap: balance;
+}
+.hero h1 em { font-style: italic; font-weight: 400; color: var(--acento); }
+.hero-sub { font-size: 18px; color: var(--tinta-2); max-width: 30em; margin: 0 0 36px; }
+.hero-cta { display: flex; gap: 12px; flex-wrap: wrap; }
+.hero-nota { margin: 28px 0 0; font-size: 13px; color: var(--tinta-3); }
+
+/* Arte del hero: libro abierto + tapas */
+.hero-arte { position: relative; padding: 8% 6%; }
+.hero-arte .portada { position: absolute; width: 30%; }
+.hero-arte .t1 { top: 0; right: 2%; transform: rotate(9deg); }
+.hero-arte .t2 { bottom: -2%; left: 0; transform: rotate(-8deg); z-index: 2; width: 26%; }
+
+.mini-libro {
+  position: relative; z-index: 1; display: grid; grid-template-columns: 1fr 1fr;
+  aspect-ratio: 1.45; background: var(--superficie); border-radius: 6px;
+  box-shadow: 0 40px 60px -30px rgba(50,30,10,.45), 0 2px 4px rgba(0,0,0,.06);
+  transform: rotate(-1.5deg);
+}
+.mini-libro::before, .mini-libro::after { /* cantos de hojas */
+  content: ""; position: absolute; top: 4px; bottom: 4px; width: 7px;
+  background: repeating-linear-gradient(to right, var(--papel-2) 0 1px, var(--linea) 1px 2px);
+}
+.mini-libro::before { right: 100%; border-radius: 4px 0 0 4px; }
+.mini-libro::after  { left: 100%; border-radius: 0 4px 4px 0; width: 4px; }
+.mini-pag { position: relative; padding: 13% 12% 10%; }
+.mini-pag:first-child { background: linear-gradient(to left, rgba(60,40,15,.16), transparent 12%); }
+.mini-pag:last-child  { background: linear-gradient(to right, rgba(60,40,15,.16), transparent 12%); }
+.mini-cab { font: 500 7px/1 var(--f-ui); letter-spacing: .2em; text-transform: uppercase; color: var(--tinta-3); text-align: center; margin-bottom: 14%; }
+.mini-num { font: 600 7px/1 var(--f-ui); letter-spacing: .25em; color: var(--acento); text-align: center; text-transform: uppercase; }
+.mini-tit { font: italic 400 clamp(11px, 1.4vw, 16px)/1.2 var(--f-display); text-align: center; margin: 6px 0 14px; }
+.mini-renglones { display: grid; gap: 7px; }
+.mini-renglones i { display: block; height: 4px; border-radius: 2px; background: var(--linea); }
+.mini-renglones i:nth-child(3n) { width: 92%; }
+.mini-renglones i.corto { width: 55%; }
+.mini-renglones .capital { display: flex; gap: 6px; align-items: flex-start; }
+.mini-renglones .capital b { font: 500 34px/.8 var(--f-display); color: var(--acento); }
+.mini-renglones .capital span { flex: 1; display: grid; gap: 7px; }
+.mini-folio { position: absolute; bottom: 6%; font: 400 8px/1 var(--f-lectura); color: var(--tinta-3); }
+.mini-pag:first-child .mini-folio { left: 12%; }
+.mini-pag:last-child .mini-folio  { right: 12%; }
+.mini-cinta { position: absolute; top: -5px; right: 14%; width: 12px; height: 46px; background: var(--acento); clip-path: polygon(0 0,100% 0,100% 100%,50% 80%,0 100%); }
+
+@media (max-width: 900px) {
+  .hero-in { grid-template-columns: 1fr; gap: 56px; padding-top: 56px; padding-bottom: 72px; }
+  .hero-arte { max-width: 560px; }
+}
+
+/* =========================================================
+   6. SEGUIR LEYENDO
+   ========================================================= */
+.seccion { padding: 72px 0; }
+.seccion-cab { display: flex; align-items: end; justify-content: space-between; gap: 16px; margin-bottom: 32px; }
+.seccion-cab a { font-size: 14px; color: var(--tinta-2); text-decoration: none; border-bottom: 1px solid var(--linea); }
+
+.grid-seguir { display: grid; grid-template-columns: 1.6fr 1fr 1fr; gap: 20px; }
+.tarjeta {
+  display: flex; gap: 18px; padding: 18px; border-radius: 16px;
+  background: var(--superficie); border: 1px solid var(--linea);
+  text-decoration: none; transition: transform .25s, box-shadow .25s;
+}
+.tarjeta:hover { transform: translateY(-3px); box-shadow: var(--sombra); }
+.tarjeta .portada { width: 84px; flex: none; }
+.tarjeta-info { display: flex; flex-direction: column; min-width: 0; }
+.tarjeta h3 { font: 500 18px/1.2 var(--f-display); margin: 2px 0 4px; }
+.tarjeta .autor { font-size: 13.5px; color: var(--tinta-2); margin: 0; }
+.progreso { margin-top: auto; padding-top: 14px; }
+.barra-prog { height: 4px; background: var(--papel-2); border-radius: 2px; overflow: hidden; }
+.barra-prog span { display: block; height: 100%; background: var(--acento); border-radius: 2px; }
+.meta { display: flex; justify-content: space-between; font-size: 12px; color: var(--tinta-3); margin-top: 7px; font-variant-numeric: tabular-nums; }
+
+.tarjeta.destacada { padding: 24px; gap: 24px; }
+.tarjeta.destacada .portada { width: 132px; }
+.tarjeta.destacada h3 { font-size: 24px; }
+.cita {
+  font: italic 400 15px/1.5 var(--f-lectura); color: var(--tinta-2);
+  margin: 14px 0 0; padding-left: 14px; border-left: 2px solid var(--acento);
+}
+.cita small { display: block; font: 500 11px/1 var(--f-ui); letter-spacing: .1em; text-transform: uppercase; color: var(--tinta-3); margin-bottom: 6px; font-style: normal; }
+.tarjeta.destacada .btn { align-self: flex-start; margin-top: 16px; height: 40px; font-size: 14px; }
+
+@media (max-width: 960px) { .grid-seguir { grid-template-columns: 1fr 1fr; } .tarjeta.destacada { grid-column: 1 / -1; } }
+@media (max-width: 600px) {
+  .grid-seguir { grid-template-columns: 1fr; }
+  .tarjeta.destacada { flex-direction: column; }
+  .tarjeta.destacada .portada { width: 110px; }
+}
+
+/* =========================================================
+   7. ESTANTERÍA (lomos)
+   ========================================================= */
+.estante-wrap { overflow-x: auto; padding-top: 24px; scrollbar-width: thin; }
+.estante {
+  display: flex; align-items: flex-end; gap: 3px; min-width: max-content;
+  height: 270px; padding: 0 28px; position: relative;
+}
+.estante::after { /* tabla de madera */
+  content: ""; position: absolute; left: 0; right: 0; bottom: -16px; height: 16px;
+  background: linear-gradient(var(--madera), var(--madera-2));
+  border-radius: 2px; box-shadow: 0 14px 20px -10px rgba(40,25,10,.5);
+}
+.lomo {
+  width: var(--w, 40px); height: var(--h, 85%); background: var(--c); color: var(--t, #f3ead9);
+  border-radius: 2px 2px 0 0; position: relative; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; justify-content: space-between;
+  padding: 14px 0 12px; transition: transform .25s cubic-bezier(.3,.7,.3,1);
+  box-shadow: inset 3px 0 4px -2px rgba(255,255,255,.18), inset -4px 0 6px -3px rgba(0,0,0,.35);
+}
+.lomo:hover { transform: translateY(-12px); }
+.lomo .lt { writing-mode: vertical-rl; transform: rotate(180deg); font: 500 13px/1 var(--f-display); white-space: nowrap; letter-spacing: .01em; }
+.lomo .la { writing-mode: vertical-rl; transform: rotate(180deg); font: 500 8.5px/1 var(--f-ui); letter-spacing: .14em; text-transform: uppercase; opacity: .75; }
+.lomo::before, .lomo::after { /* bandas doradas */
+  content: ""; position: absolute; left: 0; right: 0; height: 2px; background: currentColor; opacity: .35;
+}
+.lomo::before { top: 6px; } .lomo::after { bottom: 34px; }
+.lomo.inclinado { transform: rotate(-9deg); transform-origin: bottom left; margin: 0 14px 0 6px; }
+.lomo.inclinado:hover { transform: rotate(-9deg) translateY(-12px); }
+.lomo.acostado-pila { align-self: flex-end; }
+
+/* =========================================================
+   8. SUBIR EPUB
+   ========================================================= */
+.subir {
+  border: 2px dashed var(--linea); border-radius: 22px; background: var(--superficie);
+  padding: 64px 24px; text-align: center; transition: border-color .2s, background .2s;
+}
+.subir:hover, .subir.activo { border-color: var(--acento); background: var(--acento-suave); }
+.subir-icono { width: 60px; height: 60px; margin: 0 auto 20px; color: var(--acento); }
+.subir h2 { font: 500 26px/1.2 var(--f-display); margin: 0 0 8px; }
+.subir p { margin: 0 0 24px; color: var(--tinta-2); }
+.subir small { display: block; margin-top: 18px; color: var(--tinta-3); font-size: 12.5px; }
+
+/* =========================================================
+   9. CARACTERÍSTICAS
+   ========================================================= */
+.caracts { display: grid; grid-template-columns: repeat(3, 1fr); gap: 40px; }
+.caract-ico { width: 48px; height: 48px; border-radius: 14px; display: grid; place-items: center; background: var(--acento-suave); color: var(--acento); margin-bottom: 18px; }
+.caract-ico svg { width: 22px; height: 22px; }
+.caract h3 { font: 500 20px/1.25 var(--f-display); margin: 0 0 8px; }
+.caract p { margin: 0; color: var(--tinta-2); font-size: 15px; }
+@media (max-width: 800px) { .caracts { grid-template-columns: 1fr; gap: 32px; } }
+
+.pie { border-top: 1px solid var(--linea); padding: 32px 0 40px; margin-top: 40px; font-size: 13px; color: var(--tinta-3); }
+.pie .contenedor { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.ornamento { text-align: center; color: var(--tinta-3); letter-spacing: .6em; margin: 8px 0 0; }
+</style>
+</head>
+<body>
+
+<!-- ================= NAV ================= -->
+<header class="nav">
+  <div class="contenedor nav-in">
+    <a class="logo" href="#">
+      <svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true">
+        <path d="M16 8c-3-2.2-7-3-11-2.6v18c4-.4 8 .4 11 2.6 3-2.2 7-3 11-2.6v-18c-4-.4-8 .4-11 2.6Z"/>
+        <path d="M16 8v18"/>
+      </svg>
+      Folio
+    </a>
+    <nav class="nav-links">
+      <a href="#biblioteca">Biblioteca</a>
+      <a href="#estanteria">Estantería</a>
+      <a href="#como">Cómo funciona</a>
+    </nav>
+    <div class="nav-acc">
+      <button class="btn-icono" id="btnTema" aria-label="Cambiar tema claro u oscuro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5Z"/></svg>
+      </button>
+      <a class="btn btn-primario btn-chico" href="#subir">Subir EPUB</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <!-- ================= HERO ================= -->
+  <section class="hero">
+    <div class="contenedor hero-in">
+      <div>
+        <p class="eyebrow">Lector de EPUB</p>
+        <h1>Leer como en papel, <em>en cualquier pantalla.</em></h1>
+        <p class="hero-sub">Subí tus libros y leelos a doble página, con márgenes de verdad, tu tipografía favorita y la luz que te quede cómoda.</p>
+        <div class="hero-cta">
+          <a class="btn btn-primario" href="#subir">Subir mi primer libro</a>
+          <a class="btn btn-secundario" href="lector.html">Probar el lector →</a>
+        </div>
+        <p class="hero-nota">Compatible con EPUB 2 y 3 · En la compu y en el celu</p>
+      </div>
+
+      <div class="hero-arte" aria-hidden="true">
+        <div class="portada p-regenta t1">
+          <span class="pt-autor">Leopoldo Alas «Clarín»</span>
+          <span class="pt-titulo">La <em>Regenta</em></span>
+          <span class="pt-inicial">R</span>
+        </div>
+
+        <div class="mini-libro">
+          <div class="mini-pag">
+            <div class="mini-cab">Miguel de Cervantes</div>
+            <div class="mini-renglones">
+              <i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i></i><i class="corto"></i>
+              <i></i><i></i><i></i><i></i>
+            </div>
+            <span class="mini-folio">12</span>
+          </div>
+          <div class="mini-pag">
+            <div class="mini-num">Capítulo II</div>
+            <div class="mini-tit">La primera salida</div>
+            <div class="mini-renglones">
+              <div class="capital"><b>H</b><span><i></i><i></i><i></i></span></div>
+              <i></i><i></i><i></i><i></i><i></i><i class="corto"></i><i></i><i></i>
+            </div>
+            <span class="mini-folio">13</span>
+            <span class="mini-cinta"></span>
+          </div>
+        </div>
+
+        <div class="portada p-marianela t2">
+          <span class="pt-autor">Benito Pérez Galdós</span>
+          <span class="pt-titulo">Mariane&shy;la</span>
+          <span class="pt-reglas"></span>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SEGUIR LEYENDO ================= -->
+  <section class="seccion" id="biblioteca">
+    <div class="contenedor">
+      <div class="seccion-cab">
+        <h2 class="titulo-seccion">Seguir leyendo</h2>
+        <a href="#estanteria">Ver toda la biblioteca</a>
+      </div>
+
+      <div class="grid-seguir">
+        <a class="tarjeta destacada" href="lector.html">
+          <div class="portada p-quijote">
+            <span class="pt-autor">Miguel de Cervantes</span>
+            <span class="pt-titulo">Don Quijote <em>de la Mancha</em></span>
+            <span class="pt-marco"></span>
+          </div>
+          <div class="tarjeta-info">
+            <h3>Don Quijote de la Mancha</h3>
+            <p class="autor">Miguel de Cervantes</p>
+            <p class="cita"><small>Te quedaste en</small>«…se le pasaban las noches leyendo de claro en claro, y los días de turbio en turbio…»</p>
+            <div class="progreso">
+              <div class="barra-prog"><span style="width:38%"></span></div>
+              <div class="meta"><span>Pág. 128 de 336</span><span>38 %</span></div>
+            </div>
+            <span class="btn btn-primario">Continuar leyendo</span>
+          </div>
+        </a>
+
+        <a class="tarjeta" href="lector.html">
+          <div class="portada p-rimas">
+            <span class="pt-autor">G. A. Bécquer</span>
+            <span class="pt-titulo"><em>Rimas</em></span>
+            <span class="pt-reglas"></span>
+          </div>
+          <div class="tarjeta-info">
+            <h3>Rimas y leyendas</h3>
+            <p class="autor">Gustavo Adolfo Bécquer</p>
+            <div class="progreso">
+              <div class="barra-prog"><span style="width:12%"></span></div>
+              <div class="meta"><span>Pág. 21</span><span>12 %</span></div>
+            </div>
+          </div>
+        </a>
+
+        <a class="tarjeta" href="lector.html">
+          <div class="portada p-niebla">
+            <span class="pt-autor">Miguel de Unamuno</span>
+            <span class="pt-titulo">Niebla</span>
+            <span class="pt-sol"></span>
+          </div>
+          <div class="tarjeta-info">
+            <h3>Niebla</h3>
+            <p class="autor">Miguel de Unamuno</p>
+            <div class="progreso">
+              <div class="barra-prog"><span style="width:64%"></span></div>
+              <div class="meta"><span>Pág. 140</span><span>64 %</span></div>
+            </div>
+          </div>
+        </a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= ESTANTERÍA ================= -->
+  <section class="seccion" id="estanteria">
+    <div class="contenedor">
+      <div class="seccion-cab">
+        <h2 class="titulo-seccion">Tu estantería</h2>
+        <a href="#">Ordenar por autor</a>
+      </div>
+      <div class="estante-wrap">
+        <div class="estante">
+          <div class="lomo" style="--c:#9b3b2a;--w:46px;--h:88%"><span class="lt">Don Quijote</span><span class="la">Cervantes</span></div>
+          <div class="lomo" style="--c:#2f4a3a;--t:#e2cf8d;--w:38px;--h:78%"><span class="lt">Marianela</span><span class="la">Galdós</span></div>
+          <div class="lomo" style="--c:#1f2a44;--w:52px;--h:92%"><span class="lt">La Regenta</span><span class="la">Clarín</span></div>
+          <div class="lomo" style="--c:#e6d8bd;--t:#2b2219;--w:30px;--h:70%"><span class="lt">Rimas</span><span class="la">Bécquer</span></div>
+          <div class="lomo" style="--c:#c08f42;--t:#2a1f12;--w:42px;--h:82%"><span class="lt">Martín Fierro</span><span class="la">Hernández</span></div>
+          <div class="lomo" style="--c:#5a3d5c;--w:44px;--h:86%"><span class="lt">Amalia</span><span class="la">Mármol</span></div>
+          <div class="lomo inclinado" style="--c:#6d7a80;--w:36px;--h:80%"><span class="lt">Niebla</span><span class="la">Unamuno</span></div>
+          <div class="lomo" style="--c:#3e5a6e;--w:48px;--h:90%"><span class="lt">Facundo</span><span class="la">Sarmiento</span></div>
+          <div class="lomo" style="--c:#7a2e3a;--w:34px;--h:74%"><span class="lt">La Celestina</span><span class="la">Rojas</span></div>
+          <div class="lomo" style="--c:#d9c79f;--t:#3a2c1a;--w:28px;--h:66%"><span class="lt">Azul</span><span class="la">Darío</span></div>
+          <div class="lomo" style="--c:#44614a;--w:40px;--h:84%"><span class="lt">María</span><span class="la">Isaacs</span></div>
+          <div class="lomo" style="--c:#8c5a3a;--w:50px;--h:94%"><span class="lt">Fortunata y Jacinta</span><span class="la">Galdós</span></div>
+          <div class="lomo" style="--c:#2b2d33;--w:32px;--h:72%"><span class="lt">Lazarillo</span><span class="la">Anónimo</span></div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= SUBIR ================= -->
+  <section class="seccion" id="subir">
+    <div class="contenedor">
+      <div class="subir" id="zonaSubir">
+        <svg class="subir-icono" viewBox="0 0 64 64" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M32 16c-5-3.6-12-5-20-4.4v34c8-.6 15 .8 20 4.4 5-3.6 12-5 20-4.4v-34c-8-.6-15 .8-20 4.4Z"/>
+          <path d="M32 16v34"/>
+          <path d="M32 2v8M28 6l4-4 4 4"/>
+        </svg>
+        <h2>Arrastrá tu archivo .epub acá</h2>
+        <p>Lo agregamos a tu estantería y lo abrimos donde lo dejaste.</p>
+        <span class="btn btn-primario">Elegir archivo</span>
+        <small>EPUB 2 y 3 · hasta 100 MB</small>
+      </div>
+    </div>
+  </section>
+
+  <!-- ================= CÓMO FUNCIONA ================= -->
+  <section class="seccion" id="como">
+    <div class="contenedor">
+      <div class="seccion-cab"><h2 class="titulo-seccion">Pensado para leer, no para mirar pantallas</h2></div>
+      <div class="caracts">
+        <div class="caract">
+          <div class="caract-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M12 6c-2.3-1.6-5.3-2.2-9-2v14c3.7-.2 6.7.4 9 2 2.3-1.6 5.3-2.2 9-2V4c-3.7-.2-6.7.4-9 2Z"/><path d="M12 6v14"/></svg></div>
+          <h3>Formato libro de verdad</h3>
+          <p>Doble página, lomo, cabeceras, números de página y la hoja que gira. Como abrir un libro.</p>
+        </div>
+        <div class="caract">
+          <div class="caract-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M4 19 9 5h1l5 14M6 14h7"/><path d="M17 11.5c.6-.9 1.4-1.3 2.4-1.3 1.6 0 2.6 1 2.6 2.6V19m0-4.2c-.8-.3-1.5-.4-2.3-.4-1.7 0-2.7.8-2.7 2.1 0 1.2.9 2 2.2 2 1.3 0 2.3-.8 2.8-1.9"/></svg></div>
+          <h3>Tu tipografía, tu luz</h3>
+          <p>Temas papel, sepia y noche. Tres familias tipográficas, tamaño e interlineado a tu medida.</p>
+        </div>
+        <div class="caract">
+          <div class="caract-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7 3h10v18l-5-4-5 4V3Z"/></svg></div>
+          <h3>Marcadores con cinta</h3>
+          <p>Marcá páginas, volvé al índice cuando quieras y retomá siempre en la última línea que leíste.</p>
+        </div>
+      </div>
+      <p class="ornamento">❦</p>
+    </div>
+  </section>
+</main>
+
+<footer class="pie">
+  <div class="contenedor">
+    <span>Folio — maqueta de diseño</span>
+    <span>Fraunces · Literata · Inter</span>
+  </div>
+</footer>
+
+<script>
+  // Solo para la maqueta: alterna tema claro/oscuro.
+  document.getElementById('btnTema').addEventListener('click', () => {
+    const r = document.documentElement;
+    const oscuroAhora = r.dataset.theme
+      ? r.dataset.theme === 'dark'
+      : matchMedia('(prefers-color-scheme: dark)').matches;
+    r.dataset.theme = oscuroAhora ? 'light' : 'dark';
+  });
+  // Efecto visual de "arrastrar encima" (no sube nada).
+  const zona = document.getElementById('zonaSubir');
+  ['dragenter', 'dragover'].forEach(ev => zona.addEventListener(ev, e => { e.preventDefault(); zona.classList.add('activo'); }));
+  ['dragleave', 'drop'].forEach(ev => zona.addEventListener(ev, e => { e.preventDefault(); zona.classList.remove('activo'); }));
+</script>
+</body>
+</html>

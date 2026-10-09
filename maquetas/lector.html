@@ -1,0 +1,698 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folio — Maqueta lector</title>
+<!--
+  MAQUETA VISUAL — vista de lectura.
+  Usa un texto de muestra (Don Quijote, dominio público) para mostrar el diseño.
+  La paginación es con columnas CSS, la misma técnica que usan epub.js y foliate-js,
+  así que el diseño se puede trasladar tal cual a un lector EPUB real.
+
+  Interacciones de muestra: clic en mitad izquierda/derecha o flechas del teclado,
+  deslizar en el celular, Aa (ajustes), ☰ (índice), cinta (marcador).
+-->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400..500&family=Inter:wght@400;500;600&family=Literata:ital,opsz,wght@0,7..72,400..600;1,7..72,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<style>
+/* =========================================================
+   1. TEMAS DE LECTURA
+   ========================================================= */
+body {
+  --fondo: #e6e0d4; --fondo-2: #d6cdbd;          /* el "escritorio" */
+  --hoja: #fbf7ef; --texto: #2a241c; --texto-2: #82776a;
+  --acento: #9b3b2a;
+  --ui: rgba(251,247,239,.88); --ui-borde: rgba(60,40,20,.12);
+  --lomo: rgba(70,45,15,.2);
+  --canto: #efe7d6; --canto-linea: #d3c6ac;
+  --sombra-libro: 0 34px 60px -24px rgba(50,35,15,.45), 0 10px 22px -10px rgba(50,35,15,.25);
+
+  --f-texto: "Literata", Georgia, serif;
+  --f-display: "Fraunces", Georgia, serif;
+  --f-ui: "Inter", system-ui, "Segoe UI", sans-serif;
+  --fs: 18px; --lh: 1.6;
+
+  margin: 0; height: 100vh; height: 100dvh; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 42%, var(--fondo), var(--fondo-2));
+  color: var(--texto); font-family: var(--f-ui);
+  -webkit-font-smoothing: antialiased; transition: background .4s, color .4s;
+}
+body[data-tema="sepia"] {
+  --fondo: #d9caac; --fondo-2: #c6b38c;
+  --hoja: #f3e7cc; --texto: #43341f; --texto-2: #8a7352; --acento: #8c3a1f;
+  --ui: rgba(243,231,204,.9); --canto: #ebdcbb; --canto-linea: #c9b38a;
+}
+body[data-tema="noche"] {
+  --fondo: #15130f; --fondo-2: #0a0907;
+  --hoja: #1e1b17; --texto: #d6ccbb; --texto-2: #8a806f; --acento: #e08a6d;
+  --ui: rgba(34,31,26,.9); --ui-borde: rgba(255,255,255,.08);
+  --lomo: rgba(0,0,0,.55); --canto: #2a2620; --canto-linea: #3c352b;
+  --sombra-libro: 0 34px 70px -20px rgba(0,0,0,.85);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+button { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--acento); outline-offset: 2px; }
+
+/* =========================================================
+   2. BARRAS (se esconden solas)
+   ========================================================= */
+.barra {
+  position: fixed; left: 0; right: 0; z-index: 20;
+  display: flex; align-items: center; gap: 12px; padding: 12px 16px;
+  transition: opacity .35s, transform .35s;
+}
+.barra-sup { top: 0; justify-content: space-between; }
+.barra-inf { bottom: 0; justify-content: center; font-size: 12.5px; color: var(--texto-2); font-variant-numeric: tabular-nums; }
+.inmersivo .barra-sup { opacity: 0; transform: translateY(-100%); pointer-events: none; }
+.inmersivo .barra-inf { opacity: 0; transform: translateY(100%); pointer-events: none; }
+
+.grupo-btn { display: flex; gap: 8px; }
+.btn-l {
+  width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center;
+  background: var(--ui); border: 1px solid var(--ui-borde); cursor: pointer;
+  backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+  text-decoration: none; transition: color .2s;
+}
+.btn-l:hover { color: var(--acento); }
+.btn-l svg { width: 18px; height: 18px; }
+.btn-l[aria-pressed="true"] { color: var(--acento); }
+.btn-l[aria-pressed="true"] svg path { fill: currentColor; }
+.btn-aa { font: 500 15px/1 var(--f-display); }
+
+.titulo { text-align: center; line-height: 1.25; min-width: 0; }
+.titulo b { display: block; font: 500 15px/1.25 var(--f-display); }
+.titulo span { font-size: 12px; color: var(--texto-2); }
+
+.rango { width: min(380px, 42vw); accent-color: var(--acento); cursor: pointer; }
+.info-b { min-width: 9em; }
+.info-b:first-child { text-align: right; }
+
+/* =========================================================
+   3. EL LIBRO
+   ========================================================= */
+.escenario { position: fixed; inset: 0; display: grid; place-items: center; padding: 68px 0 60px; touch-action: pan-y; }
+.libro { position: relative; width: calc(var(--pw) * 2); height: var(--ph); perspective: 2600px; cursor: pointer; }
+.libro.una { width: var(--pw); }
+.libro::before { /* sombra sobre el escritorio */
+  content: ""; position: absolute; inset: 1% 0 0; border-radius: 6px; box-shadow: var(--sombra-libro);
+}
+
+/* cantos de hojas: el izquierdo engorda al avanzar */
+.canto {
+  position: absolute; top: 3px; bottom: 3px; width: var(--w, 6px);
+  background: repeating-linear-gradient(to right, var(--canto) 0 1px, var(--canto-linea) 1px 2px);
+  transition: width .5s;
+}
+.canto-izq { right: 100%; border-radius: 4px 0 0 4px; }
+.canto-der { left: 100%; border-radius: 0 4px 4px 0; }
+
+.pagina {
+  position: absolute; top: 0; width: var(--pw); height: var(--ph);
+  background: var(--hoja); color: var(--texto); overflow: hidden;
+  transition: background .4s, color .4s;
+}
+.pagina.izq { left: 0; border-radius: 5px 1px 1px 5px; }
+.pagina.der { left: var(--pw); border-radius: 1px 5px 5px 1px; }
+.pagina.unica { left: 0; border-radius: 4px; }
+/* sombra del lomo: el detalle que más vende el "libro" */
+.pagina::after { content: ""; position: absolute; inset: 0; pointer-events: none; }
+.pagina.izq::after { background: linear-gradient(to left, var(--lomo), transparent 10%), linear-gradient(to right, rgba(0,0,0,.035), transparent 3%); }
+.pagina.der::after { background: linear-gradient(to right, var(--lomo), transparent 10%), linear-gradient(to left, rgba(0,0,0,.035), transparent 3%); }
+
+.cabecera {
+  position: absolute; top: 0; height: var(--mt); display: flex; align-items: center; justify-content: center;
+  font: 500 10px/1 var(--f-ui); letter-spacing: .18em; text-transform: uppercase; color: var(--texto-2);
+  white-space: nowrap; overflow: hidden;
+}
+.izq .cabecera { left: var(--mo); right: var(--mi); }
+.der .cabecera { left: var(--mi); right: var(--mo); }
+.unica .cabecera { left: var(--mo); right: var(--mo); }
+
+.folio { position: absolute; bottom: 0; height: var(--mb); display: flex; align-items: center; font: 400 12.5px/1 var(--f-texto); color: var(--texto-2); }
+.izq .folio { left: var(--mo); }       /* folios en la esquina exterior */
+.der .folio { right: var(--mo); }
+.unica .folio { left: 0; right: 0; justify-content: center; }
+
+.marco { position: absolute; top: var(--mt); width: var(--cw); height: var(--ch); overflow: hidden; }
+.izq .marco, .unica .marco { left: var(--mo); }
+.der .marco { left: var(--mi); }
+.vacia .marco { visibility: hidden; }
+
+/* =========================================================
+   4. TIPOGRAFÍA DEL TEXTO
+   ========================================================= */
+.flujo {
+  width: var(--cw); height: var(--ch);
+  column-width: var(--cw); column-gap: var(--gap); column-fill: auto;
+  font-family: var(--f-texto); font-size: var(--fs); line-height: var(--lh);
+  text-align: justify; hyphens: auto; -webkit-hyphens: auto;
+  widows: 2; orphans: 2; font-optical-sizing: auto; font-kerning: normal;
+}
+.flujo p { margin: 0; text-indent: 1.5em; text-wrap: pretty; }
+.flujo .capitulo { break-before: column; }
+.flujo .cap-num {
+  display: block; text-align: center; margin: 1.6em 0 .7em;
+  font: 600 .66em/1 var(--f-ui); letter-spacing: .28em; text-transform: uppercase; color: var(--acento);
+}
+.flujo h2 {
+  margin: 0 auto .5em; max-width: 92%; text-align: center; hyphens: none; text-wrap: balance;
+  font: italic 400 1.22em/1.3 var(--f-display);
+}
+.flujo .orn { text-align: center; color: var(--texto-2); margin: 0 0 1.4em; letter-spacing: .6em; text-indent: 0; }
+.flujo p.inicial { text-indent: 0; }
+.flujo p.inicial::first-letter {
+  float: left; font: 500 3.35em/.84 var(--f-display); color: var(--acento);
+  padding: .07em .09em 0 0;
+}
+.flujo .portadilla {
+  height: calc(var(--ch) - 2px); break-after: column;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center;
+}
+.portadilla .pa { font: 500 .62em/1 var(--f-ui); letter-spacing: .26em; text-transform: uppercase; color: var(--texto-2); }
+.portadilla .pt { font: 400 1.9em/1.1 var(--f-display); margin: .7em 0 .5em; letter-spacing: -.01em; text-wrap: balance; }
+.portadilla .pt em { display: block; font-style: italic; font-size: .62em; color: var(--texto-2); margin-bottom: .3em; }
+.portadilla .pp { font: italic .9em/1.4 var(--f-texto); color: var(--texto-2); }
+.portadilla .orn { margin: 1.6em 0 0; color: var(--acento); }
+.flujo .fin-muestra { text-align: center; text-indent: 0; margin-top: 1.4em; font: italic .85em/1.5 var(--f-texto); color: var(--texto-2); }
+
+/* =========================================================
+   5. HOJA QUE GIRA
+   ========================================================= */
+.hoja-giro {
+  position: absolute; top: 0; left: var(--pw); width: var(--pw); height: var(--ph);
+  transform-style: preserve-3d; transform-origin: left center; z-index: 5; pointer-events: none;
+}
+.hoja-giro .pagina { left: 0; backface-visibility: hidden; -webkit-backface-visibility: hidden; }
+.hoja-giro .dorso { transform: rotateY(180deg); }
+.sombra-giro { position: absolute; inset: 0; opacity: 0; pointer-events: none; }
+.der .sombra-giro { background: linear-gradient(to right, rgba(0,0,0,.35), rgba(0,0,0,.05)); }
+.izq .sombra-giro { background: linear-gradient(to left, rgba(0,0,0,.35), rgba(0,0,0,.05)); }
+
+/* Cinta de marcador */
+.cinta {
+  position: absolute; top: -5px; right: 12%; width: 18px; height: 70px; z-index: 6;
+  background: var(--acento); clip-path: polygon(0 0,100% 0,100% 100%,50% 82%,0 100%);
+  transform-origin: top; transform: scaleY(0); transition: transform .35s cubic-bezier(.3,.8,.3,1);
+  box-shadow: 0 2px 4px rgba(0,0,0,.2);
+}
+.cinta.activa { transform: scaleY(1); }
+
+.medidor { position: absolute; left: 0; top: 0; width: var(--cw); height: var(--ch); overflow: hidden; visibility: hidden; pointer-events: none; }
+
+/* =========================================================
+   6. PANEL DE AJUSTES (Aa)
+   ========================================================= */
+.panel {
+  position: fixed; top: 64px; right: 16px; z-index: 30; width: min(320px, calc(100vw - 32px));
+  background: var(--hoja); color: var(--texto); border: 1px solid var(--ui-borde); border-radius: 18px;
+  padding: 20px; box-shadow: 0 24px 50px -16px rgba(0,0,0,.35);
+  opacity: 0; transform: translateY(-8px) scale(.98); transform-origin: top right; pointer-events: none;
+  transition: opacity .2s, transform .2s;
+}
+.panel.abierto { opacity: 1; transform: none; pointer-events: auto; }
+.grupo + .grupo { margin-top: 20px; }
+.grupo-tit { margin: 0 0 10px; font: 600 10.5px/1 var(--f-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--texto-2); }
+
+.temas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.tema-op { display: flex; flex-direction: column; align-items: center; gap: 6px; background: none; border: 0; cursor: pointer; font-size: 12px; color: var(--texto-2); }
+.tema-op i { width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(0,0,0,.12); display: grid; place-items: center; font: 500 15px/1 var(--f-display); font-style: normal; }
+.tema-op[data-tema="papel"] i { background: #fbf7ef; color: #2a241c; }
+.tema-op[data-tema="sepia"] i { background: #f3e7cc; color: #43341f; }
+.tema-op[data-tema="noche"] i { background: #1e1b17; color: #d6ccbb; }
+.tema-op[aria-pressed="true"] i { box-shadow: 0 0 0 2px var(--hoja), 0 0 0 4px var(--acento); }
+.tema-op[aria-pressed="true"] { color: var(--texto); }
+
+.opciones { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.op {
+  padding: 10px 4px 8px; border-radius: 10px; border: 1px solid var(--ui-borde); background: none; cursor: pointer;
+  display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11.5px; color: var(--texto-2);
+}
+.op b { font-size: 20px; font-weight: 400; color: var(--texto); line-height: 1; }
+.op[aria-pressed="true"] { border-color: var(--acento); color: var(--texto); background: color-mix(in srgb, var(--acento) 8%, transparent); }
+.op svg { width: 22px; height: 18px; color: var(--texto); }
+
+.tamano { display: flex; align-items: center; gap: 10px; }
+.tamano button { width: 44px; height: 40px; border-radius: 10px; border: 1px solid var(--ui-borde); background: none; cursor: pointer; font-family: var(--f-display); }
+.tamano .chica { font-size: 13px; } .tamano .grande { font-size: 21px; }
+.puntos { flex: 1; display: flex; justify-content: space-between; align-items: center; padding: 0 4px; }
+.puntos i { width: 6px; height: 6px; border-radius: 50%; background: var(--ui-borde); }
+.puntos i.on { background: var(--acento); }
+
+.interruptor { display: flex; align-items: center; justify-content: space-between; font-size: 14px; cursor: pointer; }
+.interruptor input { appearance: none; width: 40px; height: 24px; border-radius: 12px; background: var(--ui-borde); position: relative; cursor: pointer; transition: background .2s; margin: 0; }
+.interruptor input::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .2s; box-shadow: 0 1px 2px rgba(0,0,0,.2); }
+.interruptor input:checked { background: var(--acento); }
+.interruptor input:checked::after { transform: translateX(16px); }
+.interruptor input:disabled { opacity: .4; }
+
+/* =========================================================
+   7. ÍNDICE (cajón izquierdo)
+   ========================================================= */
+.cajon {
+  position: fixed; top: 0; bottom: 0; left: 0; z-index: 30; width: min(360px, 88vw);
+  background: var(--hoja); color: var(--texto); padding: 24px 24px 32px; overflow-y: auto;
+  transform: translateX(-102%); transition: transform .3s cubic-bezier(.3,.8,.3,1);
+  box-shadow: 20px 0 50px -20px rgba(0,0,0,.4);
+}
+.cajon.abierto { transform: none; }
+.cajon-cab { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 24px; }
+.cajon-sup { margin: 0 0 4px; font-size: 12px; color: var(--texto-2); }
+.cajon h2 { margin: 0; font: 500 28px/1.1 var(--f-display); }
+.cajon h3 { margin: 32px 0 10px; font: 600 10.5px/1 var(--f-ui); letter-spacing: .16em; text-transform: uppercase; color: var(--texto-2); }
+.lista { list-style: none; margin: 0; padding: 0; }
+.item {
+  width: 100%; display: flex; align-items: baseline; gap: 8px; padding: 12px 0; border: 0; background: none; cursor: pointer; text-align: left;
+  border-bottom: 1px solid var(--ui-borde);
+}
+.item .num { font: 600 10px/1 var(--f-ui); letter-spacing: .12em; text-transform: uppercase; color: var(--acento); flex: none; width: 3.2em; }
+.item .tit { font: 400 15.5px/1.35 var(--f-texto); }
+.item .lider { flex: 1; border-bottom: 1.5px dotted var(--texto-2); opacity: .5; transform: translateY(-4px); min-width: 16px; }  /* puntitos guía */
+.item .pag { font: 400 14px/1 var(--f-texto); color: var(--texto-2); font-variant-numeric: tabular-nums; }
+.item:hover .tit { color: var(--acento); }
+.item.actual .tit { font-weight: 600; }
+.vacio { font: italic 14px/1.5 var(--f-texto); color: var(--texto-2); margin: 0; }
+
+.velo { position: fixed; inset: 0; z-index: 25; background: rgba(20,15,10,.3); opacity: 0; pointer-events: none; transition: opacity .3s; }
+.velo.visible { opacity: 1; pointer-events: auto; }
+
+@media (max-width: 600px) {
+  .titulo b { font-size: 14px; }
+  .info-b { display: none; }
+  .rango { width: 70vw; }
+  .barra { padding: 10px 12px; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition-duration: .01ms !important; } }
+</style>
+</head>
+<body>
+
+<header class="barra barra-sup">
+  <a class="btn-l" href="inicio.html" aria-label="Volver a la biblioteca">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+  </a>
+  <div class="titulo">
+    <b>Don Quijote de la Mancha</b>
+    <span id="tituloCap">Capítulo I</span>
+  </div>
+  <div class="grupo-btn">
+    <button class="btn-l" id="btnIndice" aria-label="Índice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01"/></svg>
+    </button>
+    <button class="btn-l" id="btnMarcador" aria-label="Marcar página" aria-pressed="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M7 3h10v18l-5-4-5 4V3Z"/></svg>
+    </button>
+    <button class="btn-l btn-aa" id="btnAjustes" aria-label="Ajustes de lectura" aria-expanded="false">Aa</button>
+  </div>
+</header>
+
+<main class="escenario" id="escenario">
+  <div class="libro" id="libro">
+    <div class="canto canto-izq" id="cantoIzq"></div>
+    <div class="canto canto-der" id="cantoDer"></div>
+    <div class="cinta" id="cinta"></div>
+  </div>
+</main>
+
+<footer class="barra barra-inf">
+  <span class="info-b" id="pagInfo"></span>
+  <input class="rango" id="rango" type="range" min="0" value="0" aria-label="Posición en el libro">
+  <span class="info-b" id="tiempoInfo"></span>
+</footer>
+
+<!-- Panel Aa -->
+<aside class="panel" id="panelAjustes" aria-label="Ajustes de lectura">
+  <div class="grupo">
+    <p class="grupo-tit">Tema</p>
+    <div class="temas">
+      <button class="tema-op" data-tema="papel"><i>Aa</i>Papel</button>
+      <button class="tema-op" data-tema="sepia"><i>Aa</i>Sepia</button>
+      <button class="tema-op" data-tema="noche"><i>Aa</i>Noche</button>
+    </div>
+  </div>
+  <div class="grupo">
+    <p class="grupo-tit">Tipografía</p>
+    <div class="opciones">
+      <button class="op" data-fuente="literata"><b style="font-family:Literata">Aa</b>Literata</button>
+      <button class="op" data-fuente="garamond"><b style="font-family:'EB Garamond'">Aa</b>Garamond</button>
+      <button class="op" data-fuente="atkinson"><b style="font-family:'Atkinson Hyperlegible'">Aa</b>Legible</button>
+    </div>
+  </div>
+  <div class="grupo">
+    <p class="grupo-tit">Tamaño</p>
+    <div class="tamano">
+      <button class="chica" id="menos" aria-label="Achicar letra">A</button>
+      <div class="puntos" id="puntos"></div>
+      <button class="grande" id="mas" aria-label="Agrandar letra">A</button>
+    </div>
+  </div>
+  <div class="grupo">
+    <p class="grupo-tit">Interlineado</p>
+    <div class="opciones">
+      <button class="op" data-lh="1.45"><svg viewBox="0 0 22 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 5h18M2 9h18M2 13h18"/></svg>Compacto</button>
+      <button class="op" data-lh="1.6"><svg viewBox="0 0 22 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 3.5h18M2 9h18M2 14.5h18"/></svg>Normal</button>
+      <button class="op" data-lh="1.8"><svg viewBox="0 0 22 18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"><path d="M2 2h18M2 9h18M2 16h18"/></svg>Amplio</button>
+    </div>
+  </div>
+  <div class="grupo">
+    <label class="interruptor">Doble página <input type="checkbox" id="chkDoble" checked></label>
+  </div>
+</aside>
+
+<!-- Cajón índice -->
+<aside class="cajon" id="cajonIndice" aria-label="Índice">
+  <div class="cajon-cab">
+    <div><p class="cajon-sup">Don Quijote de la Mancha</p><h2>Índice</h2></div>
+    <button class="btn-l" id="cerrarIndice" aria-label="Cerrar índice">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M6 6l12 12M18 6 6 18"/></svg>
+    </button>
+  </div>
+  <ol class="lista" id="listaIndice"></ol>
+  <h3>Marcadores</h3>
+  <ul class="lista" id="listaMarcadores"></ul>
+  <p class="vacio" id="sinMarcadores">Tocá la cinta de arriba para marcar una página.</p>
+</aside>
+<div class="velo" id="velo"></div>
+
+<!-- ============ CONTENIDO DE MUESTRA ============ -->
+<template id="contenido">
+  <section class="portadilla">
+    <span class="pa">Miguel de Cervantes</span>
+    <span class="pt"><em>El ingenioso hidalgo</em>Don Quijote de la Mancha</span>
+    <span class="pp">Primera parte</span>
+    <span class="orn">❦</span>
+  </section>
+
+  <section class="capitulo" data-num="I" data-titulo="Que trata de la condición y ejercicio del famoso hidalgo don Quijote de la Mancha" data-corto="Condición del hidalgo">
+    <span class="cap-num">Capítulo I</span>
+    <h2>Que trata de la condición y ejercicio del famoso hidalgo don Quijote de la Mancha</h2>
+    <p class="orn">· · ·</p>
+    <p class="inicial">En un lugar de la Mancha, de cuyo nombre no quiero acordarme, no ha mucho tiempo que vivía un hidalgo de los de lanza en astillero, adarga antigua, rocín flaco y galgo corredor. Una olla de algo más vaca que carnero, salpicón las más noches, duelos y quebrantos los sábados, lantejas los viernes, algún palomino de añadidura los domingos, consumían las tres partes de su hacienda. El resto della concluían sayo de velarte, calzas de velludo para las fiestas, con sus pantuflos de lo mesmo, y los días de entresemana se honraba con su vellorí de lo más fino.</p>
+    <p>Tenía en su casa una ama que pasaba de los cuarenta, y una sobrina que no llegaba a los veinte, y un mozo de campo y plaza, que así ensillaba el rocín como tomaba la podadera. Frisaba la edad de nuestro hidalgo con los cincuenta años; era de complexión recia, seco de carnes, enjuto de rostro, gran madrugador y amigo de la caza. Quieren decir que tenía el sobrenombre de Quijada, o Quesada, que en esto hay alguna diferencia en los autores que deste caso escriben; aunque por conjeturas verosímiles se deja entender que se llamaba Quijana. Pero esto importa poco a nuestro cuento; basta que en la narración dél no se salga un punto de la verdad.</p>
+    <p>Es, pues, de saber que este sobredicho hidalgo, los ratos que estaba ocioso —que eran los más del año—, se daba a leer libros de caballerías, con tanta afición y gusto, que olvidó casi de todo punto el ejercicio de la caza, y aun la administración de su hacienda; y llegó a tanto su curiosidad y desatino en esto, que vendió muchas hanegas de tierra de sembradura para comprar libros de caballerías en que leer, y así, llevó a su casa todos cuantos pudo haber dellos.</p>
+    <p>Con estas razones perdía el pobre caballero el juicio, y desvelábase por entenderlas y desentrañarles el sentido, que no se lo sacara ni las entendiera el mesmo Aristóteles, si resucitara para sólo ello. Tuvo muchas veces competencia con el cura de su lugar —que era hombre docto, graduado en Sigüenza—, sobre cuál había sido mejor caballero: Palmerín de Ingalaterra o Amadís de Gaula; mas maese Nicolás, barbero del mesmo pueblo, decía que ninguno llegaba al Caballero del Febo.</p>
+    <p>En resolución, él se enfrascó tanto en su letura, que se le pasaban las noches leyendo de claro en claro, y los días de turbio en turbio; y así, del poco dormir y del mucho leer, se le secó el celebro, de manera que vino a perder el juicio. Llenósele la fantasía de todo aquello que leía en los libros, así de encantamentos como de pendencias, batallas, desafíos, heridas, requiebros, amores, tormentas y disparates imposibles; y asentósele de tal modo en la imaginación que era verdad toda aquella máquina de aquellas sonadas soñadas invenciones que leía, que para él no había otra historia más cierta en el mundo.</p>
+    <p>En efeto, rematado ya su juicio, vino a dar en el más estraño pensamiento que jamás dio loco en el mundo, y fue que le pareció convenible y necesario, así para el aumento de su honra como para el servicio de su república, hacerse caballero andante, y irse por todo el mundo con sus armas y caballo a buscar las aventuras y a ejercitarse en todo aquello que él había leído que los caballeros andantes se ejercitaban, deshaciendo todo género de agravio, y poniéndose en ocasiones y peligros donde, acabándolos, cobrase eterno nombre y fama.</p>
+    <p>Y lo primero que hizo fue limpiar unas armas que habían sido de sus bisabuelos, que, tomadas de orín y llenas de moho, luengos siglos había que estaban puestas y olvidadas en un rincón. Limpiólas y aderezólas lo mejor que pudo, pero vio que tenían una gran falta, y era que no tenían celada de encaje, sino morrión simple; mas a esto suplió su industria, porque de cartones hizo un modo de media celada, que, encajada con el morrión, hacían una apariencia de celada entera.</p>
+    <p>Fue luego a ver su rocín, y, aunque tenía más cuartos que un real y más tachas que el caballo de Gonela, le pareció que ni el Bucéfalo de Alejandro ni Babieca el del Cid con él se igualaban. Cuatro días se le pasaron en imaginar qué nombre le pondría; y así, después de muchos nombres que formó, borró y quitó, añadió, deshizo y tornó a hacer en su memoria e imaginación, al fin le vino a llamar Rocinante: nombre, a su parecer, alto, sonoro y significativo de lo que había sido cuando fue rocín, antes de lo que ahora era, que era antes y primero de todos los rocines del mundo.</p>
+    <p>Puesto nombre, y tan a su gusto, a su caballo, quiso ponérsele a sí mismo, y en este pensamiento duró otros ocho días, y al cabo se vino a llamar don Quijote. Pero, acordándose que el valeroso Amadís no sólo se había contentado con llamarse Amadís a secas, sino que añadió el nombre de su reino y patria, por hacerla famosa, así quiso, como buen caballero, añadir al suyo el nombre de la suya y llamarse don Quijote de la Mancha, con que, a su parecer, declaraba muy al vivo su linaje y patria, y la honraba con tomar el sobrenombre della.</p>
+    <p>Limpias, pues, sus armas, hecho del morrión celada, puesto nombre a su rocín y confirmándose a sí mismo, se dio a entender que no le faltaba otra cosa sino buscar una dama de quien enamorarse; porque el caballero andante sin amores era árbol sin hojas y sin fruto y cuerpo sin alma. Llamábase Aldonza Lorenzo, y a ésta le pareció ser bien darle título de señora de sus pensamientos; y vino a llamarla Dulcinea del Toboso, porque era natural del Toboso: nombre, a su parecer, músico y peregrino y significativo, como todos los demás que a él y a sus cosas había puesto.</p>
+  </section>
+
+  <section class="capitulo" data-num="II" data-titulo="Que trata de la primera salida que de su tierra hizo el ingenioso don Quijote" data-corto="La primera salida">
+    <span class="cap-num">Capítulo II</span>
+    <h2>Que trata de la primera salida que de su tierra hizo el ingenioso don Quijote</h2>
+    <p class="orn">· · ·</p>
+    <p class="inicial">Hechas, pues, estas prevenciones, no quiso aguardar más tiempo a poner en efeto su pensamiento, apretándole a ello la falta que él pensaba que hacía en el mundo su tardanza, según eran los agravios que pensaba deshacer, tuertos que enderezar, sinrazones que emendar y abusos que mejorar y deudas que satisfacer. Y así, sin dar parte a persona alguna de su intención y sin que nadie le viese, una mañana, antes del día, que era uno de los calurosos del mes de julio, se armó de todas sus armas, subió sobre Rocinante, puesta su mal compuesta celada, embrazó su adarga, tomó su lanza y, por la puerta falsa de un corral, salió al campo con grandísimo contento y alborozo de ver con cuánta facilidad había dado principio a su buen deseo.</p>
+    <p>Mas, apenas se vio en el campo, cuando le asaltó un pensamiento terrible, y tal, que por poco le hiciera dejar la comenzada empresa; y fue que le vino a la memoria que no era armado caballero, y que, conforme a ley de caballería, ni podía ni debía tomar armas con ningún caballero. Estos pensamientos le hicieron titubear en su propósito; mas, pudiendo más su locura que otra razón alguna, propuso de hacerse armar caballero del primero que topase, a imitación de otros muchos que así lo hicieron, según él había leído en los libros que tal le tenían.</p>
+    <p>Yendo, pues, caminando nuestro flamante aventurero, iba hablando consigo mesmo y diciendo: —¿Quién duda sino que en los venideros tiempos, cuando salga a luz la verdadera historia de mis famosos hechos, que el sabio que los escribiere no ponga, cuando llegue a contar esta mi primera salida tan de mañana, desta manera?: «Apenas había el rubicundo Apolo tendido por la faz de la ancha y espaciosa tierra las doradas hebras de sus hermosos cabellos, y apenas los pequeños y pintados pajarillos con sus arpadas lenguas habían saludado con dulce y meliflua armonía la venida de la rosada aurora…»</p>
+    <p class="fin-muestra">— Fin del texto de muestra —</p>
+  </section>
+  <span class="fin"></span>
+</template>
+
+<script>
+/* ---------------------------------------------------------
+   Lógica SOLO de maqueta: pagina el texto de muestra con
+   columnas CSS y anima la hoja. En la app real, epub.js /
+   foliate-js reemplazan la parte de paginar.
+   --------------------------------------------------------- */
+(() => {
+  const $ = s => document.querySelector(s);
+  const cuerpo = document.body, libro = $('#libro'), plantilla = $('#contenido');
+  const reducir = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const FUENTES = {
+    literata: '"Literata", Georgia, serif',
+    garamond: '"EB Garamond", Garamond, Georgia, serif',
+    atkinson: '"Atkinson Hyperlegible", system-ui, sans-serif'
+  };
+  const TAMANOS = [15, 16, 17, 18, 20, 22, 24];
+  const GAP = 48, AUTOR = 'Miguel de Cervantes';
+
+  const prefs = {
+    tema: matchMedia('(prefers-color-scheme: dark)').matches ? 'noche' : 'papel',
+    fuente: 'literata', tam: 3, lh: 1.6, doble: true
+  };
+  let L = {}, total = 0, actual = 0, caps = [], inicioCap = new Set();
+  let pags = [], animando = false, palabrasPag = 250, marcadores = [];
+
+  /* ---------- medidas del libro según pantalla ---------- */
+  function medidas() {
+    const vw = innerWidth, vh = innerHeight;
+    const doble = prefs.doble && vw >= 820;
+    const alto = vh - (vw < 600 ? 116 : 140);
+    let pw, ph;
+    if (doble) {
+      ph = Math.min(alto, 860); pw = Math.round(ph * .68);
+      const max = Math.floor((vw - 120) / 2);
+      if (pw > max) { pw = max; ph = Math.round(pw / .68); }
+    } else {
+      pw = Math.min(vw - 24, 560); ph = vw < 600 ? alto : Math.min(alto, Math.round(pw / .64));
+    }
+    const mo = Math.round(pw * (doble ? .12 : .09)), mi = Math.round(pw * (doble ? .09 : .09));
+    const mt = Math.round(ph * .085), mb = Math.round(ph * .085);
+    return { doble, pw, ph, mo, mi, mt, mb, cw: pw - mo - mi, ch: ph - mt - mb };
+  }
+
+  function crearPagina(lado) {
+    const p = document.createElement('div');
+    p.className = 'pagina ' + lado;
+    p.innerHTML = '<div class="cabecera"></div><div class="marco"></div><div class="folio"></div><div class="sombra-giro"></div>';
+    const f = document.createElement('div');
+    f.className = 'flujo';
+    f.append(plantilla.content.cloneNode(true));
+    p.querySelector('.marco').append(f);
+    return p;
+  }
+
+  const capDe = n => caps.reduce((a, c) => c.pagina <= n ? c : a, caps[0]);
+  const alinear = n => {
+    n = Math.max(0, Math.min(total - 1, n));
+    return L.doble ? n - (n % 2) : n;
+  };
+
+  function pintar(p, n) {
+    const vacia = n < 0 || n >= total;
+    p.classList.toggle('vacia', vacia);
+    p.querySelector('.flujo').style.transform = `translateX(${-n * (L.cw + GAP)}px)`;
+    const limpia = vacia || n === 0 || inicioCap.has(n);   // sin cabecera en portadilla e inicio de capítulo
+    const cab = p.classList.contains('izq') ? AUTOR : (capDe(n)?.corto || '');
+    p.querySelector('.cabecera').textContent = limpia ? '' : cab;
+    p.querySelector('.folio').textContent = vacia || n === 0 ? '' : n + 1;
+  }
+
+  function pintarTodo() {
+    pags.forEach((p, i) => pintar(p, actual + i));
+    actualizarUI();
+  }
+
+  /* ---------- paginar con columnas ---------- */
+  function paginar() {
+    const fr = total ? actual / total : 0;
+    L = medidas();
+    for (const k of ['pw','ph','mo','mi','mt','mb','cw','ch']) libro.style.setProperty('--' + k, L[k] + 'px');
+    libro.style.setProperty('--gap', GAP + 'px');
+    libro.classList.toggle('una', !L.doble);
+    $('#cinta').style.right = L.doble ? '12%' : '10%';
+
+    const med = document.createElement('div');
+    med.className = 'medidor';
+    const f = crearPagina('x').querySelector('.flujo');
+    med.append(f); libro.append(med);
+    const paso = L.cw + GAP, base = f.getBoundingClientRect().left;
+    const posPag = el => Math.round((el.getBoundingClientRect().left - base) / paso);
+    total = posPag(f.querySelector('.fin')) + 1;
+    caps = [...f.querySelectorAll('.capitulo')].map(c => ({
+      num: c.dataset.num, titulo: c.dataset.titulo, corto: c.dataset.corto,
+      pagina: posPag(c.querySelector('.cap-num'))
+    }));
+    palabrasPag = f.textContent.trim().split(/\s+/).length / total;
+    med.remove();
+    inicioCap = new Set(caps.map(c => c.pagina));
+
+    libro.querySelectorAll('.pagina, .hoja-giro').forEach(e => e.remove());
+    animando = false;
+    pags = L.doble ? [crearPagina('izq'), crearPagina('der')] : [crearPagina('unica')];
+    libro.prepend(...pags);
+    actual = alinear(Math.round(fr * total));
+    $('#chkDoble').disabled = innerWidth < 820;
+    pintarTodo(); armarIndice();
+  }
+
+  /* ---------- pasar página ---------- */
+  function ir(dir) {
+    if (animando) return;
+    const nuevo = actual + dir * (L.doble ? 2 : 1);
+    if (nuevo < 0 || nuevo > total - 1) {
+      libro.animate([{ transform: 'none' }, { transform: `translateX(${-dir * 8}px)` }, { transform: 'none' }], { duration: 260 });
+      return;
+    }
+    if (reducir || !L.doble) {
+      actual = nuevo; pintarTodo();
+      if (!reducir) pags[0].querySelector('.marco').animate(
+        [{ opacity: 0, transform: `translateX(${dir * 14}px)` }, { opacity: 1, transform: 'none' }],
+        { duration: 280, easing: 'ease-out' });
+      return;
+    }
+    animando = true;
+    const hoja = document.createElement('div');
+    hoja.className = 'hoja-giro';
+    const frente = crearPagina('der'), dorso = crearPagina('izq');
+    dorso.classList.add('dorso');
+    hoja.append(frente, dorso); libro.append(hoja);
+    const [izq, der] = pags;
+    if (dir > 0) { pintar(frente, actual + 1); pintar(dorso, actual + 2); pintar(der, actual + 3); }
+    else         { pintar(frente, actual - 1); pintar(dorso, actual);     pintar(izq, actual - 2); }
+
+    const o = { duration: 760, easing: 'cubic-bezier(.42,.08,.22,1)', fill: 'forwards' };
+    const [a, b] = dir > 0 ? [0, -180] : [-180, 0];
+    const giro = hoja.animate([{ transform: `rotateY(${a}deg)` }, { transform: `rotateY(${b}deg)` }], o);
+    const osc = [{ opacity: 0 }, { opacity: .55 }], cla = [{ opacity: .55 }, { opacity: 0 }];
+    frente.querySelector('.sombra-giro').animate(dir > 0 ? osc : cla, o);
+    dorso.querySelector('.sombra-giro').animate(dir > 0 ? cla : osc, o);
+    giro.onfinish = () => { actual = nuevo; pintarTodo(); hoja.remove(); animando = false; };
+  }
+  const irA = n => { actual = alinear(n); pintarTodo(); };
+
+  /* ---------- UI ---------- */
+  const marcado = () => marcadores.some(fr => alinear(Math.round(fr * total)) === actual);
+
+  function actualizarUI() {
+    const visibles = L.doble ? 2 : 1;
+    const ult = Math.min(actual + visibles, total);
+    $('#pagInfo').textContent = L.doble && ult > actual + 1
+      ? `Páginas ${actual + 1}–${ult} de ${total}` : `Página ${actual + 1} de ${total}`;
+    const cap = capDe(actual + visibles - 1);
+    const sig = caps.find(c => c.pagina > actual + visibles - 1)?.pagina ?? total;
+    const resto = sig - (actual + visibles);
+    $('#tiempoInfo').textContent = resto > 0
+      ? `${Math.max(1, Math.ceil(resto * palabrasPag / 230))} min para terminar el capítulo`
+      : 'Último tramo del capítulo';
+    $('#tituloCap').textContent = `Capítulo ${cap.num} · ${cap.corto}`;
+    const r = $('#rango');
+    r.max = total - 1; r.step = visibles; r.value = actual;
+
+    const prog = total > 1 ? actual / (total - 1) : 0;
+    $('#cantoIzq').style.setProperty('--w', (2 + 10 * prog) + 'px');
+    $('#cantoDer').style.setProperty('--w', (2 + 10 * (1 - prog)) + 'px');
+
+    const m = marcado();
+    $('#cinta').classList.toggle('activa', m);
+    $('#btnMarcador').setAttribute('aria-pressed', m);
+    document.querySelectorAll('#listaIndice .item').forEach((b, i) => b.classList.toggle('actual', caps[i] === cap));
+  }
+
+  function itemIndice(num, tit, pag, onClick) {
+    const li = document.createElement('li');
+    const b = document.createElement('button');
+    b.className = 'item';
+    b.innerHTML = '<span class="num"></span><span class="tit"></span><span class="lider"></span><span class="pag"></span>';
+    b.querySelector('.num').textContent = num;
+    b.querySelector('.tit').textContent = tit;
+    b.querySelector('.pag').textContent = pag;
+    b.onclick = onClick;
+    li.append(b);
+    return li;
+  }
+  function armarIndice() {
+    const ol = $('#listaIndice'); ol.innerHTML = '';
+    caps.forEach(c => ol.append(itemIndice('Cap. ' + c.num, c.corto, c.pagina + 1, () => { irA(c.pagina); cerrar(); })));
+    const ul = $('#listaMarcadores'); ul.innerHTML = '';
+    marcadores.forEach(fr => {
+      const n = alinear(Math.round(fr * total));
+      ul.append(itemIndice('', capDe(n).corto, n + 1, () => { irA(n); cerrar(); }));
+    });
+    $('#sinMarcadores').hidden = marcadores.length > 0;
+    actualizarUI();
+  }
+
+  function aplicarPrefs() {
+    cuerpo.dataset.tema = prefs.tema;
+    cuerpo.style.setProperty('--f-texto', FUENTES[prefs.fuente]);
+    cuerpo.style.setProperty('--fs', TAMANOS[prefs.tam] + 'px');
+    cuerpo.style.setProperty('--lh', prefs.lh);
+    document.querySelectorAll('[data-tema]').forEach(b => b.setAttribute('aria-pressed', b.dataset.tema === prefs.tema));
+    document.querySelectorAll('[data-fuente]').forEach(b => b.setAttribute('aria-pressed', b.dataset.fuente === prefs.fuente));
+    document.querySelectorAll('[data-lh]').forEach(b => b.setAttribute('aria-pressed', +b.dataset.lh === prefs.lh));
+    $('#puntos').innerHTML = TAMANOS.map((_, i) => `<i class="${i <= prefs.tam ? 'on' : ''}"></i>`).join('');
+  }
+  async function repaginar() {
+    aplicarPrefs();
+    try { await document.fonts.load(`${TAMANOS[prefs.tam]}px ${FUENTES[prefs.fuente]}`); } catch {}
+    paginar();
+  }
+
+  /* ---------- paneles y barras ---------- */
+  const panel = $('#panelAjustes'), cajon = $('#cajonIndice'), velo = $('#velo');
+  function cerrar() {
+    panel.classList.remove('abierto'); cajon.classList.remove('abierto'); velo.classList.remove('visible');
+    $('#btnAjustes').setAttribute('aria-expanded', 'false');
+  }
+  $('#btnAjustes').onclick = () => {
+    const abrir = !panel.classList.contains('abierto');
+    cerrar();
+    if (abrir) { panel.classList.add('abierto'); $('#btnAjustes').setAttribute('aria-expanded', 'true'); }
+  };
+  $('#btnIndice').onclick = () => { cerrar(); cajon.classList.add('abierto'); velo.classList.add('visible'); };
+  $('#cerrarIndice').onclick = cerrar;
+  velo.onclick = cerrar;
+  $('#btnMarcador').onclick = () => {
+    if (marcado()) marcadores = marcadores.filter(fr => alinear(Math.round(fr * total)) !== actual);
+    else marcadores.push(actual / total);
+    armarIndice();
+  };
+
+  document.querySelectorAll('[data-tema]').forEach(b => b.onclick = () => { prefs.tema = b.dataset.tema; aplicarPrefs(); });
+  document.querySelectorAll('[data-fuente]').forEach(b => b.onclick = () => { prefs.fuente = b.dataset.fuente; repaginar(); });
+  document.querySelectorAll('[data-lh]').forEach(b => b.onclick = () => { prefs.lh = +b.dataset.lh; repaginar(); });
+  $('#menos').onclick = () => { if (prefs.tam > 0) { prefs.tam--; repaginar(); } };
+  $('#mas').onclick = () => { if (prefs.tam < TAMANOS.length - 1) { prefs.tam++; repaginar(); } };
+  $('#chkDoble').onchange = e => { prefs.doble = e.target.checked; repaginar(); };
+  $('#rango').addEventListener('change', e => irA(+e.target.value));
+
+  let reloj;
+  function despertar() {
+    cuerpo.classList.remove('inmersivo');
+    clearTimeout(reloj);
+    reloj = setTimeout(() => {
+      if (!panel.classList.contains('abierto') && !cajon.classList.contains('abierto')) cuerpo.classList.add('inmersivo');
+    }, 3200);
+  }
+  addEventListener('mousemove', despertar);
+
+  /* ---------- navegación: clic, teclado, deslizar ---------- */
+  let x0 = null, y0 = 0, deslizo = false;
+  const esc = $('#escenario');
+  esc.addEventListener('pointerdown', e => { x0 = e.clientX; y0 = e.clientY; deslizo = false; });
+  esc.addEventListener('pointerup', e => {
+    if (x0 === null) return;
+    const dx = e.clientX - x0, dy = e.clientY - y0;
+    if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) { deslizo = true; ir(dx < 0 ? 1 : -1); }
+    x0 = null;
+  });
+  esc.addEventListener('click', e => {
+    if (deslizo) { deslizo = false; return; }
+    if (panel.classList.contains('abierto')) { cerrar(); return; }
+    const r = libro.getBoundingClientRect(), rel = (e.clientX - r.left) / r.width;
+    if (L.doble) ir(rel < .5 ? -1 : 1);
+    else if (rel < .3) ir(-1);
+    else if (rel > .7) ir(1);
+    else cuerpo.classList.toggle('inmersivo');   // toque al centro: mostrar/ocultar barras
+  });
+  addEventListener('keydown', e => {
+    if (e.target.matches('input')) return;
+    if (['ArrowRight', 'PageDown', ' '].includes(e.key)) { e.preventDefault(); ir(1); }
+    else if (['ArrowLeft', 'PageUp'].includes(e.key)) { e.preventDefault(); ir(-1); }
+    else if (e.key === 'Escape') cerrar();
+  });
+  let rt;
+  addEventListener('resize', () => { clearTimeout(rt); rt = setTimeout(paginar, 150); });
+
+  aplicarPrefs();
+  document.fonts.ready.then(() => { paginar(); despertar(); });
+})();
+</script>
+</body>
+</html>
