@@ -1,5 +1,5 @@
 // Piezas visuales de los subrayados: menú flotante, editor de notas y lista del cajón.
-import { useEffect, useRef, useState, type CSSProperties } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type ReactNode, type SyntheticEvent } from 'react';
 import type { ColorSubrayado, Subrayado } from '../db';
 import { COLORES_SUBRAYADO, ORDEN_COLORES } from '../subrayados';
 
@@ -133,4 +133,107 @@ export function ListaSubrayados({ subrayados, onIr, onNota, onBorrar, onExportar
       </ul>
     </>
   );
+}
+
+/* ---------- Notas al margen ---------- */
+
+// Una nota visible en la página actual, con su altura medida en pantalla.
+export interface NotaVisible {
+  id: string;
+  y: number; // distancia desde el borde superior del libro
+  lado: 'izq' | 'der';
+}
+
+const MAX_TARJETAS_POR_LADO = 5;
+const ALTO_TARJETA = 74; // las tarjetas tienen alto fijo (3 líneas): así se apilan sin medirlas
+const SEPARACION = 8;
+
+interface MargenProps {
+  notas: NotaVisible[];
+  subrayados: Subrayado[];
+  anchoLibro: number;
+  altoLibro: number;
+  margenIzq: number; // centro del margen exterior izquierdo (para el indicador)
+  margenDer: number; // centro del margen exterior derecho
+  anchoTarjeta: number; // 0 = no hay lugar para tarjetas (o el lector las apagó)
+  onAbrir: (id: string) => void;
+  onVerTodas: () => void;
+}
+
+export function NotasMargen({ notas, subrayados, anchoLibro, altoLibro, margenIzq, margenDer, anchoTarjeta, onAbrir, onVerTodas }: MargenProps) {
+  const porId = new Map(subrayados.map((s) => [s.id, s]));
+  // Que los clics acá no lleguen al libro (si no, además pasaría de página).
+  const frenar = (e: SyntheticEvent) => e.stopPropagation();
+
+  const elementos: ReactNode[] = [];
+  for (const lado of ['izq', 'der'] as const) {
+    const delLado = notas.filter((n) => n.lado === lado);
+
+    // Indicadores: uno por nota, corridos un poco si caen en la misma línea.
+    let ultimoY = -Infinity;
+    for (const n of delLado) {
+      const s = porId.get(n.id);
+      if (!s) continue;
+      const y = Math.max(n.y, ultimoY + 16);
+      ultimoY = y;
+      elementos.push(
+        <button
+          key={`m-${n.id}`}
+          className="marca-nota"
+          style={{ top: y, left: lado === 'izq' ? margenIzq : margenDer, '--color': COLORES_SUBRAYADO[s.color].color } as CSSProperties}
+          aria-label="Ver nota"
+          title={s.nota ?? ''}
+          onClick={(e) => { frenar(e); onAbrir(n.id); }}
+          onPointerDown={frenar}
+          onPointerUp={frenar}
+        />,
+      );
+    }
+
+    // Tarjetas al costado del libro (solo si hay lugar), apiladas sin taparse.
+    if (!anchoTarjeta) continue;
+    let siguienteLibre = 0;
+    let mostradas = 0;
+    for (const n of delLado) {
+      const s = porId.get(n.id);
+      if (!s) continue;
+      const top = Math.max(n.y - 6, siguienteLibre);
+      if (mostradas === MAX_TARJETAS_POR_LADO || top + ALTO_TARJETA > altoLibro) break;
+      siguienteLibre = top + ALTO_TARJETA + SEPARACION;
+      mostradas++;
+      elementos.push(
+        <button
+          key={`t-${n.id}`}
+          className="tarjeta-nota"
+          style={{
+            top,
+            width: anchoTarjeta,
+            [lado === 'izq' ? 'right' : 'left']: anchoLibro + 28,
+            '--color': COLORES_SUBRAYADO[s.color].color,
+          } as CSSProperties}
+          onClick={(e) => { frenar(e); onAbrir(n.id); }}
+          onPointerDown={frenar}
+          onPointerUp={frenar}
+        >
+          {s.nota}
+        </button>,
+      );
+    }
+    const ocultas = delLado.length - mostradas;
+    if (ocultas > 0) {
+      elementos.push(
+        <button
+          key={`mas-${lado}`}
+          className="mas-notas"
+          style={{ top: Math.min(siguienteLibre, altoLibro - 30), [lado === 'izq' ? 'right' : 'left']: anchoLibro + 28 } as CSSProperties}
+          onClick={(e) => { frenar(e); onVerTodas(); }}
+          onPointerDown={frenar}
+          onPointerUp={frenar}
+        >
+          +{ocultas} {ocultas === 1 ? 'nota' : 'notas'}
+        </button>,
+      );
+    }
+  }
+  return <>{elementos}</>;
 }

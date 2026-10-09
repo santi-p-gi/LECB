@@ -315,3 +315,41 @@
 @keyframes aparecer {
   from { opacity: 0; }
 }
+
+/* =========================================================
+   NOTAS AL MARGEN
+   ========================================================= */
+.lector {
+  /* Indicador en el margen de la página, a la altura del subrayado */
+  .marca-nota {
+    position: absolute; z-index: 3; width: 12px; height: 12px; margin: 4px 0 0 -6px; padding: 0;
+    border-radius: 50%; border: 2px solid var(--hoja); background: var(--color); cursor: pointer;
+    box-shadow: 0 0 0 1px color-mix(in srgb, var(--texto) 25%, transparent);
+    transition: transform .15s;
+  }
+  .marca-nota:hover { transform: scale(1.35); }
+
+  /* Tarjeta con la nota, fuera del libro */
+  .tarjeta-nota {
+    position: absolute; z-index: 3; height: 74px; padding: 8px 10px 8px 14px; overflow: hidden;
+    border: 1px solid var(--ui-borde); border-radius: 10px; cursor: pointer; text-align: left;
+    background: var(--ui); color: var(--texto); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    font: 12.5px/1.4 var(--f-ui); white-space: pre-wrap;
+    display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical;
+    box-shadow: 0 6px 16px -8px rgba(0,0,0,.25);
+    animation: aparecer .2s ease-out; transition: opacity .35s;
+  }
+  .tarjeta-nota::before {
+    content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 4px; background: var(--color);
+  }
+  .tarjeta-nota:hover { border-color: var(--acento); }
+  .mas-notas {
+    position: absolute; z-index: 3; padding: 4px 10px; border-radius: 999px; cursor: pointer;
+    border: 1px solid var(--ui-borde); background: var(--ui); color: var(--texto-2); font-size: 12px;
+    white-space: nowrap;
+  }
+  .mas-notas:hover { color: var(--acento); }
+
+  /* En modo inmersivo las tarjetas se atenúan para no distraer */
+  &.inmersivo .tarjeta-nota, &.inmersivo .mas-notas { opacity: .55; }
+}

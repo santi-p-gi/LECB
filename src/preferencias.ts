@@ -10,6 +10,7 @@ export interface Preferencias {
   tam: number; // índice dentro de TAMANOS
   lh: number; // interlineado
   doble: boolean;
+  notasMargen: boolean; // tarjetas con las notas al costado del libro (pantallas anchas)
 }
 
 export const TAMANOS = [15, 16, 17, 18, 20, 22, 24];
@@ -44,6 +45,7 @@ export function cargarPreferencias(): Preferencias {
     tam: 3,
     lh: 1.6,
     doble: true,
+    notasMargen: true,
   };
   try {
     return { ...base, ...JSON.parse(localStorage.getItem(CLAVE) || '{}') };

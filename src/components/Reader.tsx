@@ -6,7 +6,7 @@ import { EpubCFI, type Book, type Rendition } from 'epubjs';
 import { abrirEpub, calcularPaginas, ubicarCapitulos } from '../epub';
 import { getBook, getBookFile, updateBook, type BookMeta, type ColorSubrayado, type Marcador, type Subrayado } from '../db';
 import { COLORES_SUBRAYADO, descargarSubrayados } from '../subrayados';
-import { EditorNota, ListaSubrayados, MenuSubrayado, type PosicionMenu } from './Subrayados';
+import { EditorNota, ListaSubrayados, MenuSubrayado, NotasMargen, type NotaVisible, type PosicionMenu } from './Subrayados';
 import {
   cargarPreferencias, guardarPreferencias, FUENTES, INTERLINEADOS, TAMANOS, TEMAS,
   type Fuente, type Preferencias, type Tema,
@@ -215,6 +215,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   // Menú flotante: sobre texto recién seleccionado (nuevo) o sobre un subrayado existente (id).
   const [menu, setMenu] = useState<{ posicion: PosicionMenu; nuevo?: { cfi: string; texto: string }; id?: string } | null>(null);
   const [notaAbierta, setNotaAbierta] = useState<string | null>(null); // id del subrayado cuya nota se edita
+  const [notasVisibles, setNotasVisibles] = useState<NotaVisible[]>([]); // notas en la página actual
   const [inmersivo, setInmersivo] = useState(false);
   const [arrastre, setArrastre] = useState<number | null>(null); // valor de la barra mientras se arrastra
 
@@ -497,16 +498,22 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   }
 
   function alTeclear(e: KeyboardEvent) {
-    if ((e.target as HTMLElement | null)?.matches?.('input, textarea')) return;
+    // Escape siempre cierra; las demás teclas se ignoran solo mientras se escribe o se mueve la barra.
+    if (e.key === 'Escape') {
+      setPanel(null);
+      cerrarMenu();
+      return;
+    }
+    const destino = e.target as HTMLElement | null;
+    if (destino?.matches?.('textarea, input[type="text"], input[type="range"]')) return;
+    // La barra espaciadora sobre un botón o interruptor lo activa; no pasa de página.
+    if (e.key === ' ' && destino?.matches?.('button, input')) return;
     if (['ArrowRight', 'PageDown', ' '].includes(e.key)) {
       e.preventDefault();
       ir(1);
     } else if (['ArrowLeft', 'PageUp'].includes(e.key)) {
       e.preventDefault();
       ir(-1);
-    } else if (e.key === 'Escape') {
-      setPanel(null);
-      cerrarMenu();
     }
   }
   useEffect(() => {
@@ -674,6 +681,38 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
     cerrarMenu();
   }
 
+  // Dónde quedó cada subrayado con nota en la página actual (para los indicadores y tarjetas del margen).
+  function medirNotas() {
+    const libro = libroRef.current;
+    if (!libro) return;
+    const rl = libro.getBoundingClientRect();
+    const conNota = new Set(subrayadosRef.current.filter((s) => s.nota).map((s) => s.id));
+    const vistas = new Map<string, NotaVisible>();
+    libro.querySelectorAll<SVGGElement>('g.lecb-subrayado[data-id]').forEach((g) => {
+      const id = g.dataset.id;
+      const r = g.querySelector('rect')?.getBoundingClientRect();
+      if (!id || !conNota.has(id) || vistas.has(id) || !r || !r.width) return;
+      // epub.js dibuja también los subrayados de las otras páginas del capítulo, fuera de la vista.
+      if (r.right < rl.left || r.left > rl.right) return;
+      const lado = L.doble && r.left + r.width / 2 < rl.left + rl.width / 2 ? 'izq' : 'der';
+      vistas.set(id, { id, y: r.top - rl.top, lado });
+    });
+    setNotasVisibles([...vistas.values()].sort((a, b) => a.y - b.y));
+  }
+
+  // Se vuelve a medir al cambiar de página, de subrayados o de medidas (dos veces: al instante
+  // y cuando terminó la animación de pasar página).
+  useEffect(() => {
+    if (!mostrando) return;
+    const a = window.setTimeout(medirNotas, 60);
+    const b = window.setTimeout(medirNotas, 400);
+    return () => {
+      clearTimeout(a);
+      clearTimeout(b);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mostrando, pos, subrayados, L, prefs.tema]);
+
   const subrayadoDelMenu = menu?.id ? subrayados.find((s) => s.id === menu.id) ?? null : null;
   const subrayadoConNota = notaAbierta ? subrayados.find((s) => s.id === notaAbierta) ?? null : null;
 
@@ -759,6 +798,10 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   const autor = meta?.author ?? '';
   const tituloCap = capitulo?.label ?? '';
   const g = geometriaVisor(L);
+  const anchoLibro = L.doble ? 2 * L.pw : L.pw;
+  // Tarjetas de notas al costado: solo si el lector las quiere y hay lugar fuera del libro.
+  const espacioCostado = (window.innerWidth - anchoLibro) / 2 - 28 - 16;
+  const anchoTarjeta = prefs.notasMargen && espacioCostado >= 170 ? Math.min(240, espacioCostado) : 0;
   const varsLibro = {
     '--pw': `${L.pw}px`, '--ph': `${L.ph}px`, '--mo': `${L.mo}px`, '--mi': `${L.mi}px`,
     '--mt': `${L.mt}px`, '--mb': `${L.mb}px`,
@@ -821,6 +864,20 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
               style={{ left: g.left, top: g.top, width: g.width, height: g.height }}
             />
             {!mostrando && <p className="cargando">Abriendo libro…</p>}
+            <NotasMargen
+              notas={notasVisibles}
+              subrayados={subrayados}
+              anchoLibro={anchoLibro}
+              altoLibro={L.ph}
+              margenIzq={L.mo / 2}
+              margenDer={anchoLibro - L.mo / 2}
+              anchoTarjeta={anchoTarjeta}
+              onAbrir={setNotaAbierta}
+              onVerTodas={() => {
+                setPestana('subrayados');
+                setPanel('indice');
+              }}
+            />
             <div className={`cinta ${marcada ? 'activa' : ''}`} style={{ right: L.doble ? '12%' : '10%' }} />
           </div>
         )}
@@ -1013,6 +1070,12 @@ function PanelAjustes({ abierto, prefs, onCambiar }: { abierto: boolean; prefs: 
             </button>
           ))}
         </div>
+      </div>
+      <div className="grupo">
+        <label className="interruptor">
+          Notas al costado del libro
+          <input type="checkbox" checked={prefs.notasMargen} onChange={(e) => onCambiar({ notasMargen: e.target.checked })} />
+        </label>
       </div>
       <div className="grupo">
         <label className="interruptor">
