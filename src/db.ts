@@ -33,7 +33,9 @@ export interface BookMeta {
 // Guardamos el archivo EPUB aparte para que listar la biblioteca sea liviano.
 interface LibraryDB extends DBSchema {
   books: { key: string; value: BookMeta };
-  files: { key: string; value: { id: string; data: ArrayBuffer } };
+  // El archivo se guarda como Blob: el navegador lo escribe a disco sin cargarlo entero
+  // en memoria. Los libros importados en la Fase 1 quedaron como ArrayBuffer.
+  files: { key: string; value: { id: string; data: Blob | ArrayBuffer } };
 }
 
 const dbPromise = openDB<LibraryDB>('biblioteca', 1, {
@@ -77,12 +79,14 @@ export async function getBook(id: string) {
   return book && completar(book);
 }
 
+// Devuelve el archivo listo para epub.js (que necesita un ArrayBuffer).
 export async function getBookFile(id: string) {
   const file = await (await dbPromise).get('files', id);
-  return file?.data;
+  if (!file) return undefined;
+  return file.data instanceof Blob ? file.data.arrayBuffer() : file.data;
 }
 
-export async function addBook(meta: BookMeta, data: ArrayBuffer) {
+export async function addBook(meta: BookMeta, data: Blob) {
   const db = await dbPromise;
   const tx = db.transaction(['books', 'files'], 'readwrite');
   await Promise.all([

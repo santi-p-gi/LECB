@@ -2,7 +2,8 @@
 // epub.js se encarga de paginar el texto del libro; nosotros dibujamos el "libro" alrededor:
 // hojas, lomo, cantos, cabeceras, números de página, barras, índice y ajustes.
 import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import ePub, { EpubCFI, type Book, type Rendition } from 'epubjs';
+import { EpubCFI, type Book, type Rendition } from 'epubjs';
+import { abrirEpub, calcularPaginas, ubicarCapitulos } from '../epub';
 import { getBook, getBookFile, updateBook, type BookMeta, type Marcador } from '../db';
 import {
   cargarPreferencias, guardarPreferencias, FUENTES, INTERLINEADOS, TAMANOS, TEMAS,
@@ -164,34 +165,6 @@ function infoPaginas(book: Book): InfoPaginas {
   return { total, primeraDeSpine };
 }
 
-// Dónde empieza (CFI) cada entrada del índice. Muchos libros ponen varios capítulos
-// en un mismo archivo, así que buscamos el ancla (#...) de cada uno dentro de su archivo.
-async function ubicarCapitulos(book: Book, indice: ItemIndice[]): Promise<(string | null)[]> {
-  const resultado: (string | null)[] = indice.map(() => null);
-  const porArchivo = new Map<number, number[]>();
-  indice.forEach((item, i) => {
-    if (item.spine >= 0) porArchivo.set(item.spine, [...(porArchivo.get(item.spine) ?? []), i]);
-  });
-  for (const [spine, posiciones] of porArchivo) {
-    const seccion = book.spine.get(spine);
-    if (!seccion) continue;
-    try {
-      await seccion.load(book.load.bind(book));
-      const doc = seccion.document;
-      for (const i of posiciones) {
-        const ancla = indice[i].href.split('#')[1];
-        const el = (ancla && doc.getElementById(decodeURIComponent(ancla))) || doc.body;
-        if (el) resultado[i] = seccion.cfiFromElement(el);
-      }
-    } catch {
-      // si un archivo no se puede leer, esas entradas quedan sin posición
-    } finally {
-      seccion.unload();
-    }
-  }
-  return resultado;
-}
-
 interface CapituloUbicado { item: ItemIndice; cfi: string }
 
 // La frase donde quedó el lector, para mostrar "Te quedaste en…" en la biblioteca.
@@ -207,6 +180,13 @@ async function fraseEn(book: Book, cfi: string) {
   } catch {
     return null;
   }
+}
+
+// Una promesa que se cumple cuando llamamos a avisar().
+function crearAviso() {
+  let avisar = () => {};
+  const promesa = new Promise<void>((r) => (avisar = r));
+  return { promesa, avisar };
 }
 
 const compararCfi = (a: string, b: string) => new EpubCFI().compare(a, b);
@@ -241,6 +221,8 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   const relojBarras = useRef<number | undefined>(undefined);
   const toque = useRef<{ x: number; y: number } | null>(null);
   const deslizo = useRef(false);
+  // Se cumple cuando ya se ve la primera página: recién ahí arrancan los cálculos pesados.
+  const primeraVista = useRef(crearAviso());
 
   /* ---------- 1. Abrir el libro ---------- */
   useEffect(() => {
@@ -254,8 +236,9 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
         setError('No se encontró el libro. Puede que se haya borrado de este navegador.');
         return;
       }
-      book = ePub(data);
+      book = abrirEpub(data);
       await book.ready;
+      if (cancelado) return; // se cerró el lector mientras cargaba
       const navegacion = await book.loaded.navigation;
       if (cancelado) return;
 
@@ -272,6 +255,9 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
       setListo(true);
       updateBook(bookId, { lastOpenedAt: Date.now() });
 
+      await primeraVista.current.promesa;
+      if (cancelado) return;
+
       // Dónde empieza cada capítulo (se calcula una vez y se guarda).
       let capitulos = m.capitulos;
       if (!capitulos || capitulos.length !== plano.length) {
@@ -283,8 +269,8 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
 
       // Primera vez que se abre: calculamos las páginas (puede tardar unos segundos).
       if (!m.locations) {
-        await book.locations.generate(CARACTERES_POR_PAGINA);
-        if (cancelado) return;
+        const terminado = await calcularPaginas(book, CARACTERES_POR_PAGINA, () => cancelado);
+        if (!terminado || cancelado) return;
         updateBook(bookId, { locations: book.locations.save(), pages: book.locations.length() });
         setPaginas(infoPaginas(book));
       }
@@ -367,7 +353,10 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
     rendition
       .display(cfiActual.current ?? undefined)
       .catch(() => rendition.display()) // si la posición guardada ya no sirve, desde el principio
-      .then(() => setMostrando(true))
+      .then(() => {
+        setMostrando(true);
+        primeraVista.current.avisar();
+      })
       .catch((err) => {
         console.error(err);
         setError('No se pudo mostrar el libro.');

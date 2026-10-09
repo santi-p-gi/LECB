@@ -3,6 +3,7 @@ import { useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import type { BookMeta } from '../db';
 import { colorTexto, hashTexto } from '../colores';
 import { guardarTemaSitio } from '../preferencias';
+import { enMB, TAMANO_MAXIMO } from '../almacenamiento';
 import Portada from './Portada';
 import { Cinta, LibroAbierto, Logo, Luna, Subir, Tipografia } from './Iconos';
 import './Library.css';
@@ -183,7 +184,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
               <h2>{importing ? 'Importando…' : 'Arrastrá tu archivo .epub acá'}</h2>
               <p>Lo agregamos a tu estantería y lo abrimos donde lo dejaste.</p>
               <span className="btn btn-primario">Elegir archivo</span>
-              <small>EPUB 2 y 3 · hasta 100 MB · tus libros quedan solo en este navegador</small>
+              <small>EPUB 2 y 3 · hasta {enMB(TAMANO_MAXIMO)} · tus libros quedan solo en este navegador</small>
             </div>
           </div>
         </section>

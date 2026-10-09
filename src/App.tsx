@@ -1,11 +1,15 @@
 // Componente principal: decide si mostramos la biblioteca o el lector.
 import { useEffect, useState } from 'react';
 import { addBook, deleteBook, getAllBooks, type BookMeta } from './db';
-import { readEpubInfo, TAMANO_MAXIMO } from './epub';
+import { readEpubInfo } from './epub';
+import { enMB, esFaltaDeEspacio, espacioLibre, pedirPersistencia, TAMANO_AVISO, TAMANO_MAXIMO } from './almacenamiento';
 import Library from './components/Library';
 import Reader from './components/Reader';
 
 const LIBRO_DEMO = '/libros/don-quijote.epub';
+
+// Error con un mensaje pensado para mostrarle al usuario.
+class ErrorImportacion extends Error {}
 
 // El libro abierto se guarda en la dirección (#/leer/<id>), así el botón "atrás"
 // del navegador vuelve a la biblioteca y al recargar seguimos en el mismo libro.
@@ -35,30 +39,45 @@ export default function App() {
     else location.hash = '';
   };
 
-  // Guarda un archivo en la biblioteca y devuelve su id (o null si falló).
-  async function importar(data: ArrayBuffer, extra: Partial<BookMeta> = {}) {
-    // Le pasamos una copia a epub.js para que el original quede intacto al guardarlo.
-    const info = await readEpubInfo(data.slice(0));
+  // Guarda un archivo en la biblioteca y devuelve su id.
+  // Lanza ErrorImportacion con un mensaje para el usuario si algo sale mal.
+  async function importar(archivo: Blob, extra: Partial<BookMeta> = {}) {
+    let info;
+    try {
+      // epub.js necesita el archivo en memoria solo para leer título y portada;
+      // después se libera y en la base guardamos el Blob (sin otra copia en memoria).
+      info = await readEpubInfo(await archivo.arrayBuffer());
+    } catch (err) {
+      console.error(err);
+      throw new ErrorImportacion('no es un EPUB válido');
+    }
     const id = crypto.randomUUID();
-    await addBook(
-      {
-        id,
-        ...info,
-        size: data.byteLength,
-        addedAt: Date.now(),
-        lastOpenedAt: null,
-        location: null,
-        progress: 0,
-        page: null,
-        pages: null,
-        excerpt: null,
-        locations: null,
-        capitulos: null,
-        bookmarks: [],
-        ...extra,
-      },
-      data,
-    );
+    try {
+      await addBook(
+        {
+          id,
+          ...info,
+          size: archivo.size,
+          addedAt: Date.now(),
+          lastOpenedAt: null,
+          location: null,
+          progress: 0,
+          page: null,
+          pages: null,
+          excerpt: null,
+          locations: null,
+          capitulos: null,
+          bookmarks: [],
+          ...extra,
+        },
+        archivo,
+      );
+    } catch (err) {
+      console.error(err);
+      throw new ErrorImportacion(
+        esFaltaDeEspacio(err) ? 'no hay espacio suficiente en este navegador' : 'no se pudo guardar',
+      );
+    }
     return id;
   }
 
@@ -66,17 +85,33 @@ export default function App() {
     setImporting(true);
     const failed: string[] = [];
     let ultimo: string | null = null;
+    let libre = await espacioLibre();
+    pedirPersistencia();
 
     for (const file of files) {
       if (file.size > TAMANO_MAXIMO) {
-        failed.push(`${file.name} (pesa más de 100 MB)`);
+        failed.push(`${file.name} (pesa ${enMB(file.size)}; el máximo es ${enMB(TAMANO_MAXIMO)})`);
+        continue;
+      }
+      // Dejamos un margen: la base de datos ocupa un poco más que el archivo.
+      if (libre !== null && file.size * 1.1 > libre) {
+        failed.push(`${file.name} (no hay espacio en este navegador: quedan ${enMB(libre)})`);
+        continue;
+      }
+      if (
+        file.size > TAMANO_AVISO &&
+        !confirm(
+          `"${file.name}" pesa ${enMB(file.size)}.\n\n` +
+            'Los libros muy pesados pueden tardar en abrir o fallar en celulares con poca memoria. ¿Importarlo igual?',
+        )
+      ) {
         continue;
       }
       try {
-        ultimo = await importar(await file.arrayBuffer());
+        ultimo = await importar(file);
+        if (libre !== null) libre -= file.size;
       } catch (err) {
-        console.error(err);
-        failed.push(`${file.name} (no es un EPUB válido)`);
+        failed.push(`${file.name} (${err instanceof ErrorImportacion ? err.message : 'error inesperado'})`);
       }
     }
 
@@ -96,7 +131,7 @@ export default function App() {
     setImporting(true);
     try {
       const respuesta = await fetch(LIBRO_DEMO);
-      const id = await importar(await respuesta.arrayBuffer());
+      const id = await importar(await respuesta.blob());
       await refreshBooks();
       abrirMarcado(id);
     } catch (err) {
