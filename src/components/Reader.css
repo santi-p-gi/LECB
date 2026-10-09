@@ -353,3 +353,28 @@
   /* En modo inmersivo las tarjetas se atenúan para no distraer */
   &.inmersivo .tarjeta-nota, &.inmersivo .mas-notas { opacity: .55; }
 }
+
+/* =========================================================
+   BÚSQUEDA
+   ========================================================= */
+.lector {
+  .campo-busqueda {
+    width: 100%; height: 44px; padding: 0 14px; border-radius: 12px;
+    border: 1px solid var(--ui-borde); background: color-mix(in srgb, var(--texto) 4%, transparent);
+    color: var(--texto); font: 15px var(--f-ui);
+  }
+  .campo-busqueda:focus { outline: 2px solid var(--acento); outline-offset: 0; border-color: transparent; }
+  .aviso-busqueda { margin: 12px 0 4px; font-size: 12.5px; color: var(--texto-2); }
+  .busqueda > .vacio { margin-top: 14px; }
+  .resultado {
+    width: 100%; display: flex; flex-direction: column; gap: 4px; padding: 12px 0; text-align: left;
+    background: none; border: 0; border-bottom: 1px solid var(--ui-borde); cursor: pointer;
+  }
+  .resultado-texto { font: 400 14.5px/1.45 var(--f-lectura); color: var(--texto); }
+  .resultado-texto mark {
+    background: color-mix(in srgb, var(--acento) 22%, transparent); color: inherit;
+    border-radius: 3px; padding: 0 1px; font-weight: 600;
+  }
+  .resultado:hover .resultado-texto { color: var(--acento); }
+  .resultado-meta { font-size: 12px; color: var(--texto-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+}

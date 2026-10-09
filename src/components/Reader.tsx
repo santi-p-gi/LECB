@@ -11,7 +11,9 @@ import {
   cargarPreferencias, guardarPreferencias, FUENTES, INTERLINEADOS, TAMANOS, TEMAS,
   type Fuente, type Preferencias, type Tema,
 } from '../preferencias';
-import { Cerrar, Cinta, Interlineado, Lista, Volver } from './Iconos';
+import { Cerrar, Cinta, Interlineado, Lista, Lupa, Volver } from './Iconos';
+import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
+import { buscarEnLibro, normalizar, type Resultado } from '../busqueda';
 import './Reader.css';
 
 interface ReaderProps {
@@ -209,7 +211,10 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   const [paginas, setPaginas] = useState<InfoPaginas | null>(null);
   const [pos, setPos] = useState<Posicion | null>(null);
   const [marcadores, setMarcadores] = useState<Marcador[]>([]);
-  const [panel, setPanel] = useState<'ajustes' | 'indice' | null>(null);
+  const [panel, setPanel] = useState<'ajustes' | 'indice' | 'buscar' | null>(null);
+  const [consulta, setConsulta] = useState('');
+  const [resultados, setResultados] = useState<Resultado[]>([]);
+  const [estadoBusqueda, setEstadoBusqueda] = useState<EstadoBusqueda>('vacia');
   const [pestana, setPestana] = useState<'indice' | 'marcadores' | 'subrayados'>('indice');
   const [subrayados, setSubrayados] = useState<Subrayado[]>([]);
   // Menú flotante: sobre texto recién seleccionado (nuevo) o sobre un subrayado existente (id).
@@ -233,6 +238,8 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   const primeraVista = useRef(crearAviso());
   const subrayadosRef = useRef<Subrayado[]>([]); // copia para epub.js, que no ve el estado de React
   const clicEnSubrayado = useRef(0); // momento del último toque sobre un subrayado
+  const busquedaActual = useRef(0); // cada búsqueda nueva cancela la anterior
+  const resaltadoBusqueda = useRef<{ cfi: string; reloj: number } | null>(null);
 
   /* ---------- 1. Abrir el libro ---------- */
   useEffect(() => {
@@ -504,8 +511,13 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
       cerrarMenu();
       return;
     }
+    if (e.key.toLowerCase() === 'f' && (e.ctrlKey || e.metaKey)) {
+      e.preventDefault();
+      setPanel('buscar');
+      return;
+    }
     const destino = e.target as HTMLElement | null;
-    if (destino?.matches?.('textarea, input[type="text"], input[type="range"]')) return;
+    if (destino?.matches?.('textarea, input[type="text"], input[type="search"], input[type="range"]')) return;
     // La barra espaciadora sobre un botón o interruptor lo activa; no pasa de página.
     if (e.key === ' ' && destino?.matches?.('button, input')) return;
     if (['ArrowRight', 'PageDown', ' '].includes(e.key)) {
@@ -713,6 +725,55 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mostrando, pos, subrayados, L, prefs.tema]);
 
+  /* ---------- búsqueda ---------- */
+  useEffect(() => {
+    const book = bookRef.current;
+    const id = ++busquedaActual.current;
+    if (!listo || !book || normalizar(consulta).length < 2) {
+      setResultados([]);
+      setEstadoBusqueda('vacia');
+      return;
+    }
+    const reloj = window.setTimeout(() => {
+      setResultados([]);
+      setEstadoBusqueda('buscando');
+      buscarEnLibro(
+        book,
+        consulta,
+        (nuevos) => setResultados((previos) => [...previos, ...nuevos]),
+        () => busquedaActual.current !== id,
+      ).then((fin) => {
+        if (fin !== 'cancelada') setEstadoBusqueda(fin);
+      });
+    }, 350);
+    return () => clearTimeout(reloj);
+  }, [consulta, listo]);
+
+  function irAResultado(r: Resultado) {
+    const rendition = renditionRef.current;
+    if (!rendition) return;
+    setPanel(null);
+    rendition.display(r.cfi).then(() => {
+      // Resaltamos la coincidencia unos segundos para encontrarla en la página.
+      const previo = resaltadoBusqueda.current;
+      if (previo) {
+        clearTimeout(previo.reloj);
+        rendition.annotations.remove(previo.cfi, 'highlight');
+      }
+      const noche = temaActual.current === 'noche';
+      rendition.annotations.highlight(r.cfi, {}, () => {}, 'lecb-busqueda', {
+        fill: TEMAS[temaActual.current].acento,
+        'fill-opacity': noche ? '0.4' : '0.3',
+        'mix-blend-mode': noche ? 'normal' : 'multiply',
+      });
+      const reloj = window.setTimeout(() => {
+        renditionRef.current?.annotations.remove(r.cfi, 'highlight');
+        resaltadoBusqueda.current = null;
+      }, 4000);
+      resaltadoBusqueda.current = { cfi: r.cfi, reloj };
+    });
+  }
+
   const subrayadoDelMenu = menu?.id ? subrayados.find((s) => s.id === menu.id) ?? null : null;
   const subrayadoConNota = notaAbierta ? subrayados.find((s) => s.id === notaAbierta) ?? null : null;
 
@@ -743,6 +804,23 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
       .filter((c): c is CapituloUbicado => typeof c.cfi === 'string')
       .sort((a, b) => compararCfi(a.cfi, b.cfi));
   }, [indice, capCfis]);
+
+  const resultadosMostrados = useMemo<ResultadoMostrado[]>(() => {
+    const book = bookRef.current;
+    return resultados.map((r) => {
+      // Búsqueda binaria del último capítulo que empieza antes del resultado.
+      let ini = 0, fin = capitulosUbicados.length - 1, capitulo = '';
+      while (ini <= fin) {
+        const medio = (ini + fin) >> 1;
+        if (compararCfi(capitulosUbicados[medio].cfi, r.cfi) <= 0) {
+          capitulo = capitulosUbicados[medio].item.label;
+          ini = medio + 1;
+        } else fin = medio - 1;
+      }
+      if (!capitulo) capitulo = indice.find((t) => t.spine === r.spine)?.label ?? '';
+      return { ...r, capitulo, pagina: book && paginas ? numeroPagina(book, r.cfi) : null };
+    });
+  }, [resultados, capitulosUbicados, paginas, indice]);
 
   // El capítulo actual es el último que empieza antes del final de lo que se ve.
   let capitulo: ItemIndice | null = null;
@@ -819,6 +897,9 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
           <span>{tituloCap}</span>
         </div>
         <div className="grupo-btn">
+          <button className="btn-l" onClick={() => setPanel(panel === 'buscar' ? null : 'buscar')} aria-label="Buscar en el libro">
+            <Lupa />
+          </button>
           <button className="btn-l" onClick={() => setPanel(panel === 'indice' ? null : 'indice')} aria-label="Índice">
             <Lista />
           </button>
@@ -908,75 +989,88 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
 
       <PanelAjustes abierto={panel === 'ajustes'} prefs={prefs} onCambiar={(c) => setPrefs({ ...prefs, ...c })} />
 
-      <aside className={`cajon ${panel === 'indice' ? 'abierto' : ''}`} aria-label="Índice" aria-hidden={panel !== 'indice'}>
+      <aside className={`cajon ${(panel === 'indice' || panel === 'buscar') ? 'abierto' : ''}`} aria-label="Índice" aria-hidden={!(panel === 'indice' || panel === 'buscar')}>
         <div className="cajon-cab">
           <div>
             <p className="cajon-sup">{meta?.title}</p>
-            <h2>{{ indice: 'Índice', marcadores: 'Marcadores', subrayados: 'Subrayados' }[pestana]}</h2>
+            <h2>{panel === 'buscar' ? 'Buscar' : { indice: 'Índice', marcadores: 'Marcadores', subrayados: 'Subrayados' }[pestana]}</h2>
           </div>
           <button className="btn-l" onClick={() => setPanel(null)} aria-label="Cerrar">
             <Cerrar />
           </button>
         </div>
-        <div className="pestanas" role="tablist">
-          {(['indice', 'marcadores', 'subrayados'] as const).map((p) => (
-            <button key={p} role="tab" aria-selected={pestana === p} onClick={() => setPestana(p)}>
-              {{ indice: 'Índice', marcadores: 'Marcadores', subrayados: 'Subrayados' }[p]}
-              {p === 'marcadores' && marcadores.length > 0 && <span className="cuenta">{marcadores.length}</span>}
-              {p === 'subrayados' && subrayados.length > 0 && <span className="cuenta">{subrayados.length}</span>}
-            </button>
-          ))}
-        </div>
-        {pestana === 'indice' &&
-            (indice.length === 0 ? (
-              <p className="vacio">Este libro no trae índice.</p>
-            ) : (
-              <ol className="lista">
-                {indice.map((item, i) => {
-                  const pag = paginaDeItem(i);
-                  return (
-                    <li key={`${item.href}-${i}`}>
-                      <button
-                        className={`item ${item === capitulo ? 'actual' : ''}`}
-                        style={{ paddingLeft: item.nivel * 16 }}
-                        onClick={() => irA(item.href)}
-                      >
-                        <span className="tit">{item.label}</span>
-                        <span className="lider" />
-                        <span className="pag">{pag ?? ''}</span>
-                      </button>
-                    </li>
-                  );
-                })}
-              </ol>
-            ))}
-        {pestana === 'marcadores' &&
-            (marcadores.length === 0 ? (
-              <p className="vacio">Tocá la cinta de arriba para marcar una página.</p>
-            ) : (
-              <ul className="lista">
-                {marcadores.map((m) => (
-                  <li key={m.cfi}>
-                    <button className="item" onClick={() => irA(m.cfi)}>
-                      <span className="tit">{m.etiqueta || 'Marcador'}</span>
-                      <span className="lider" />
-                      <span className="pag">{m.pagina ?? ''}</span>
-                    </button>
-                  </li>
-                ))}
-              </ul>
-            ))}
-        {pestana === 'subrayados' && (
-          <ListaSubrayados
-            subrayados={subrayados}
-            onIr={(sub) => irA(sub.cfi)}
-            onNota={(sub) => setNotaAbierta(sub.id)}
-            onBorrar={(sub) => borrarSubrayado(sub.id)}
-            onExportar={() => meta && descargarSubrayados(meta, subrayados)}
+        {panel === 'buscar' ? (
+          <PanelBusqueda
+            abierto={panel === 'buscar'}
+            consulta={consulta}
+            onConsulta={setConsulta}
+            estado={estadoBusqueda}
+            resultados={resultadosMostrados}
+            onIr={irAResultado}
           />
+        ) : (
+          <>
+            <div className="pestanas" role="tablist">
+              {(['indice', 'marcadores', 'subrayados'] as const).map((p) => (
+                <button key={p} role="tab" aria-selected={pestana === p} onClick={() => setPestana(p)}>
+                  {{ indice: 'Índice', marcadores: 'Marcadores', subrayados: 'Subrayados' }[p]}
+                  {p === 'marcadores' && marcadores.length > 0 && <span className="cuenta">{marcadores.length}</span>}
+                  {p === 'subrayados' && subrayados.length > 0 && <span className="cuenta">{subrayados.length}</span>}
+                </button>
+              ))}
+            </div>
+            {pestana === 'indice' &&
+                (indice.length === 0 ? (
+                  <p className="vacio">Este libro no trae índice.</p>
+                ) : (
+                  <ol className="lista">
+                    {indice.map((item, i) => {
+                      const pag = paginaDeItem(i);
+                      return (
+                        <li key={`${item.href}-${i}`}>
+                          <button
+                            className={`item ${item === capitulo ? 'actual' : ''}`}
+                            style={{ paddingLeft: item.nivel * 16 }}
+                            onClick={() => irA(item.href)}
+                          >
+                            <span className="tit">{item.label}</span>
+                            <span className="lider" />
+                            <span className="pag">{pag ?? ''}</span>
+                          </button>
+                        </li>
+                      );
+                    })}
+                  </ol>
+                ))}
+            {pestana === 'marcadores' &&
+                (marcadores.length === 0 ? (
+                  <p className="vacio">Tocá la cinta de arriba para marcar una página.</p>
+                ) : (
+                  <ul className="lista">
+                    {marcadores.map((m) => (
+                      <li key={m.cfi}>
+                        <button className="item" onClick={() => irA(m.cfi)}>
+                          <span className="tit">{m.etiqueta || 'Marcador'}</span>
+                          <span className="lider" />
+                          <span className="pag">{m.pagina ?? ''}</span>
+                        </button>
+                      </li>
+                    ))}
+                  </ul>
+                ))}
+            {pestana === 'subrayados' && (
+              <ListaSubrayados
+                subrayados={subrayados}
+                onIr={(sub) => irA(sub.cfi)}
+                onNota={(sub) => setNotaAbierta(sub.id)}
+                onBorrar={(sub) => borrarSubrayado(sub.id)}
+                onExportar={() => meta && descargarSubrayados(meta, subrayados)}
+              />
+            )}
+          </>
         )}
       </aside>
-      <div className={`velo ${panel === 'indice' ? 'visible' : ''}`} onClick={() => setPanel(null)} />
+      <div className={`velo ${(panel === 'indice' || panel === 'buscar') ? 'visible' : ''}`} onClick={() => setPanel(null)} />
 
       {menu && (
         <MenuSubrayado

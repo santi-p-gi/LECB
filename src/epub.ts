@@ -40,13 +40,14 @@ export function abrirEpub(data: ArrayBuffer): Book {
   return book;
 }
 
-interface SeccionSpine {
+export interface SeccionSpine {
+  index: number;
   url: string;
   cfiBase: string;
   linear: boolean;
 }
 
-function secciones(book: Book) {
+export function secciones(book: Book) {
   const lista: SeccionSpine[] = [];
   book.spine.each((s: SeccionSpine) => lista.push(s));
   return lista;
@@ -54,7 +55,7 @@ function secciones(book: Book) {
 
 // Lee un capítulo como copia aparte. epub.js, al terminar de usar un capítulo, lo "cierra";
 // si el lector lo estaba mostrando en ese momento, se quedaba trabado (pasaba con libros grandes).
-const leerCapitulo = (book: Book, url: string) => book.load(url) as Promise<Document>;
+export const leerCapitulo = (book: Book, url: string) => book.load(url) as Promise<Document>;
 
 // Calcula las "páginas" (cada `caracteres` letras) recorriendo el libro capítulo por capítulo.
 // Devuelve false si se canceló a mitad de camino.

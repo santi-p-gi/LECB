@@ -64,3 +64,10 @@ export const Interlineado = ({ separacion }: { separacion: number }) => (
     <path d={`M2 ${9 - separacion}h18M2 9h18M2 ${9 + separacion}h18`} />
   </svg>
 );
+
+export const Lupa = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+    <circle cx="11" cy="11" r="6.5" />
+    <path d="m16 16 4.5 4.5" />
+  </svg>
+);
