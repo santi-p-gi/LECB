@@ -73,6 +73,8 @@
      ========================================================= */
   .escenario { position: fixed; inset: 0; display: grid; place-items: center; padding: 68px 0 60px; touch-action: pan-y; }
   .libro { position: relative; width: calc(var(--pw) * 2); height: var(--ph); cursor: pointer; }
+  /* cabeceras y números de página: que un doble clic al pasar de página no los seleccione */
+  .pagina, .canto { user-select: none; -webkit-user-select: none; }
   .libro.una { width: var(--pw); }
   .libro::before { /* sombra sobre el escritorio */
     content: ""; position: absolute; inset: 1% 0 0; border-radius: 6px; box-shadow: var(--sombra-libro);
