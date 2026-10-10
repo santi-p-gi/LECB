@@ -25,3 +25,18 @@ npm run build   # versión final en la carpeta dist/
 | `src/preferencias.ts` | Temas, tipografías y tamaños del lector. |
 | `maquetas/` | Diseños de referencia (inicio y lector). |
 | `public/libros/` | Libro de muestra de dominio público (Don Quijote, Project Gutenberg). |
+
+## App instalable (PWA)
+
+LECB se puede instalar como app y funciona sin internet. Las piezas son:
+
+| Archivo | Qué hace |
+|---|---|
+| `public/manifest.webmanifest` | Describe la app: nombre, íconos, colores, que abra en pantalla completa. |
+| `public/iconos/` | Íconos de la app (el "maskable" es para Android, que recorta su propia forma). |
+| `src/service-worker.js` | Guarda la web y las tipografías en el dispositivo para que funcione sin internet. Al construir, `vite.config.ts` lo copia como `/sw.js` con un número de versión nuevo. |
+| `src/instalacion.ts` | Registra el service worker (solo en la versión final) y maneja el botón "Instalar app". |
+
+Para verlo: `npm run build` y luego `npx vite preview`, abrir la web, **F12 → pestaña Application**: ahí aparecen el manifiesto, el service worker y lo guardado en "Cache storage". En la pestaña Network se puede marcar "Offline" para probar sin internet.
+
+Para instalarla en el celular, la web tiene que estar publicada con HTTPS.

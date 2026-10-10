@@ -71,3 +71,18 @@ export const Lupa = () => (
     <path d="m16 16 4.5 4.5" />
   </svg>
 );
+
+export const Instalar = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5" />
+    <path d="M5 19h14" />
+  </svg>
+);
+
+// El ícono "Compartir" de iPhone (cuadrado con flecha hacia arriba).
+export const CompartirIOS = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 3v12M8 7l4-4 4 4" />
+    <path d="M7 10H5v10h14V10h-2" />
+  </svg>
+);

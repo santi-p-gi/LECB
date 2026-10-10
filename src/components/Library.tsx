@@ -5,7 +5,8 @@ import { colorTexto, hashTexto } from '../colores';
 import { guardarTemaSitio } from '../preferencias';
 import { enMB, TAMANO_MAXIMO } from '../almacenamiento';
 import Portada from './Portada';
-import { Cinta, LibroAbierto, Logo, Luna, Subir, Tipografia } from './Iconos';
+import { Cinta, CompartirIOS, Instalar, LibroAbierto, Logo, Luna, Subir, Tipografia } from './Iconos';
+import { useInstalacion } from '../instalacion';
 import './Library.css';
 
 // "Props": los datos y funciones que App le pasa a este componente.
@@ -28,6 +29,8 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
   const [arrastrando, setArrastrando] = useState(false);
   const [orden, setOrden] = useState<Orden>('recientes');
   const [editando, setEditando] = useState(false);
+  const [ayudaIOS, setAyudaIOS] = useState(false);
+  const instalacion = useInstalacion();
 
   const elegirArchivo = () => fileInputRef.current?.click();
 
@@ -101,6 +104,16 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
             <a href="#como">Cómo funciona</a>
           </nav>
           <div className="nav-acc">
+            {(instalacion.puedeInstalar || instalacion.necesitaAyudaIOS) && (
+              <button
+                className="btn btn-secundario btn-chico boton-instalar"
+                onClick={() => (instalacion.puedeInstalar ? instalacion.instalar() : setAyudaIOS(true))}
+                aria-label="Instalar LECB como app"
+              >
+                <Instalar />
+                <span>Instalar app</span>
+              </button>
+            )}
             <button className="btn-icono" onClick={cambiarTema} aria-label="Cambiar tema claro u oscuro">
               <Luna />
             </button>
@@ -216,6 +229,23 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
           </div>
         </section>
       </main>
+
+      {ayudaIOS && (
+        <div className="ayuda-fondo" onClick={() => setAyudaIOS(false)}>
+          <div className="ayuda-ios" role="dialog" aria-label="Instalar en iPhone" onClick={(e) => e.stopPropagation()}>
+            <h2>Instalar LECB en tu iPhone</h2>
+            <ol>
+              <li>
+                Tocá el botón <b>Compartir</b> <span className="icono-linea"><CompartirIOS /></span> de Safari (abajo en el centro).
+              </li>
+              <li>Elegí <b>«Agregar a inicio»</b>.</li>
+              <li>Tocá <b>«Agregar»</b>. LECB aparece en tu pantalla como cualquier app.</li>
+            </ol>
+            <p>Instalada, funciona sin internet y tu biblioteca queda protegida.</p>
+            <button className="btn btn-primario" onClick={() => setAyudaIOS(false)}>Entendido</button>
+          </div>
+        </div>
+      )}
 
       <footer className="pie">
         <div className="contenedor">
