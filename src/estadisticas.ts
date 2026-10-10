@@ -19,7 +19,10 @@ export type Evento =
   | 'subrayado'
   | 'nota'
   | 'busqueda'
-  | 'marcador';
+  | 'marcador'
+  | 'importar-drm'
+  | 'copia-exportada'
+  | 'copia-restaurada';
 
 export function contarEvento(evento: Evento) {
   const gc = (window as Window & { goatcounter?: GoatCounter }).goatcounter;

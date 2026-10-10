@@ -1,9 +1,10 @@
 // Piezas compartidas por los lectores de EPUB y PDF: medidas del libro, página y panel Aa.
 import {
-  FUENTES, INTERLINEADOS, TAMANOS, TEMAS,
+  ANIMACIONES, FUENTES, INTERLINEADOS, TAMANOS, TEMAS,
+  type Animacion,
   type Fuente, type Preferencias, type Tema,
 } from '../preferencias';
-import { Interlineado } from './Iconos';
+import { AnimacionIcono, Interlineado } from './Iconos';
 
 /* ---------- medidas del libro según la pantalla (igual que la maqueta) ---------- */
 export interface Medidas {
@@ -131,6 +132,17 @@ export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false }: { 
         </>
       )}
       <div className="grupo">
+        <p className="grupo-tit">Pasar página</p>
+        <div className="opciones">
+          {ANIMACIONES.map((op) => (
+            <button key={op.valor} className="op" aria-pressed={prefs.animacion === op.valor} onClick={() => onCambiar({ animacion: op.valor })}>
+              <AnimacionIcono tipo={op.valor} />
+              {op.nombre}
+            </button>
+          ))}
+        </div>
+      </div>
+      <div className="grupo">
         <label className="interruptor">
           Doble página
           <input
@@ -143,4 +155,48 @@ export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false }: { 
       </div>
     </aside>
   );
+}
+
+/* ---------- animación al pasar página ---------- */
+
+const reducirMovimiento = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
+
+// "normal": el texto nuevo entra con un fundido corto (se llama después de cambiar la página).
+export function animarFundido(contenido: HTMLElement | null, dir: 1 | -1, tipo: Animacion) {
+  if (tipo !== 'normal' || reducirMovimiento()) return;
+  contenido?.animate(
+    [{ opacity: 0.25, transform: `translateX(${dir * 12}px)` }, { opacity: 1, transform: 'none' }],
+    { duration: 280, easing: 'ease-out' },
+  );
+}
+
+// "hoja": una hoja de papel lisa gira sobre el lomo mientras el texto cambia por debajo
+// (se llama apenas se pide el cambio de página). Es "liviana": la hoja no lleva texto,
+// así no hace falta sacarle una foto a la página (lo caro y frágil de un giro real).
+export function animarHoja(libro: HTMLElement | null, contenido: HTMLElement | null, L: Medidas, dir: 1 | -1, tipo: Animacion) {
+  if (tipo !== 'hoja' || reducirMovimiento() || !libro) return;
+  const hoja = document.createElement('div');
+  hoja.className = `hoja-giro ${L.doble ? '' : 'sola'}`;
+  hoja.innerHTML = '<div class="cara frente"></div><div class="cara dorso"></div>';
+  // En doble página gira desde la página derecha; en una sola, desde la misma página.
+  Object.assign(hoja.style, { left: `${L.doble ? L.pw : 0}px`, width: `${L.pw}px`, height: `${L.ph}px` });
+  libro.append(hoja);
+
+  const duracion = 620;
+  const [desde, hasta] = dir > 0 ? [0, -180] : [-180, 0];
+  hoja
+    .animate(
+      [
+        { transform: `rotateY(${desde}deg)`, opacity: 1 },
+        { transform: `rotateY(${(desde + hasta) / 2}deg)`, opacity: 1, offset: 0.5 },
+        { transform: `rotateY(${hasta}deg)`, opacity: 0.85, offset: 0.9 },
+        { transform: `rotateY(${hasta}deg)`, opacity: 0 },
+      ],
+      { duration: duracion, easing: 'cubic-bezier(.42,.08,.22,1)', fill: 'forwards' },
+    )
+    .finished.finally(() => hoja.remove());
+  // El texto se atenúa mientras pasa la hoja y reaparece al final.
+  contenido?.animate([{ opacity: 1 }, { opacity: 0.12, offset: 0.25 }, { opacity: 0.12, offset: 0.7 }, { opacity: 1 }], {
+    duration: duracion,
+  });
 }

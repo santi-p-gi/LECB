@@ -5,6 +5,7 @@ import { colorTexto, hashTexto } from '../colores';
 import { guardarTemaSitio } from '../preferencias';
 import { enMB, TAMANO_MAXIMO } from '../almacenamiento';
 import Portada from './Portada';
+import CopiaSeguridad from './CopiaSeguridad';
 import { Cinta, CompartirIOS, Instalar, LibroAbierto, Logo, Luna, Subir, Tipografia } from './Iconos';
 import { useInstalacion } from '../instalacion';
 import './Library.css';
@@ -17,6 +18,7 @@ interface LibraryProps {
   onDemo: () => void;
   onOpen: (id: string) => void;
   onDelete: (id: string) => void;
+  onBibliotecaCambiada: () => void; // después de restaurar una copia
 }
 
 type Orden = 'recientes' | 'titulo' | 'autor';
@@ -24,12 +26,13 @@ const ORDENES: Record<Orden, string> = { recientes: 'Recientes', titulo: 'Títul
 
 const esLibro = (file: File) => /.(epub|pdf)$/i.test(file.name);
 
-export default function Library({ books, importing, onImport, onDemo, onOpen, onDelete }: LibraryProps) {
+export default function Library({ books, importing, onImport, onDemo, onOpen, onDelete, onBibliotecaCambiada }: LibraryProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [arrastrando, setArrastrando] = useState(false);
   const [orden, setOrden] = useState<Orden>('recientes');
   const [editando, setEditando] = useState(false);
   const [ayudaIOS, setAyudaIOS] = useState(false);
+  const [copiaAbierta, setCopiaAbierta] = useState(false);
   const instalacion = useInstalacion();
 
   const elegirArchivo = () => fileInputRef.current?.click();
@@ -37,8 +40,15 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
   function importarArchivos(fileList: FileList | null) {
     const todos = Array.from(fileList ?? []);
     const libros = todos.filter(esLibro);
+    const kindle = todos.filter((f) => /\.(mobi|azw\d?|kfx|prc)$/i.test(f.name));
+    if (kindle.length) {
+      alert(
+        'Los archivos de Kindle (.mobi, .azw) no son compatibles con LECB.\n\n' +
+          'Si el libro no tiene DRM, podés convertirlo a EPUB con Calibre, un programa gratuito.',
+      );
+    }
     if (libros.length) onImport(libros);
-    else if (todos.length) alert('Solo se pueden importar archivos .epub o .pdf');
+    else if (todos.length && !kindle.length) alert('Solo se pueden importar archivos .epub o .pdf');
   }
 
   // Arrastrar archivos funciona en toda la página, no solo en la zona de subir.
@@ -126,7 +136,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
 
       <main>
         {/* ================= HERO (solo con la biblioteca vacía) ================= */}
-        {vacia && <Hero onSubir={elegirArchivo} onDemo={onDemo} importing={importing} />}
+        {vacia && <Hero onSubir={elegirArchivo} onDemo={onDemo} onRestaurar={() => setCopiaAbierta(true)} importing={importing} />}
 
         {/* ================= SEGUIR LEYENDO ================= */}
         {leyendo.length > 0 && (
@@ -157,6 +167,9 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
                     onClick={() => setOrden(orden === 'recientes' ? 'titulo' : orden === 'titulo' ? 'autor' : 'recientes')}
                   >
                     Orden: {ORDENES[orden]}
+                  </button>
+                  <button className="enlace" onClick={() => setCopiaAbierta(true)}>
+                    Copia de seguridad
                   </button>
                   <button className="enlace" onClick={() => setEditando(!editando)}>
                     {editando ? 'Listo' : 'Editar'}
@@ -198,6 +211,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
               <p>Lo agregamos a tu estantería y lo abrimos donde lo dejaste.</p>
               <span className="btn btn-primario">Elegir archivo</span>
               <small>EPUB y PDF · hasta {enMB(TAMANO_MAXIMO)} · tus libros quedan solo en este navegador</small>
+              <small className="nota-drm">Los libros comprados con protección anticopia (DRM) no se pueden abrir.</small>
             </div>
           </div>
         </section>
@@ -231,8 +245,8 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
       </main>
 
       {ayudaIOS && (
-        <div className="ayuda-fondo" onClick={() => setAyudaIOS(false)}>
-          <div className="ayuda-ios" role="dialog" aria-label="Instalar en iPhone" onClick={(e) => e.stopPropagation()}>
+        <div className="dialogo-fondo" onClick={() => setAyudaIOS(false)}>
+          <div className="dialogo ayuda-ios" role="dialog" aria-label="Instalar en iPhone" onClick={(e) => e.stopPropagation()}>
             <h2>Instalar LECB en tu iPhone</h2>
             <ol>
               <li>
@@ -247,6 +261,15 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
         </div>
       )}
 
+      {copiaAbierta && (
+        <CopiaSeguridad
+          cantidadLibros={books?.length ?? 0}
+          pesoLibros={(books ?? []).reduce((total, b) => total + b.size, 0)}
+          onCerrar={() => setCopiaAbierta(false)}
+          onRestaurada={onBibliotecaCambiada}
+        />
+      )}
+
       <footer className="pie">
         <div className="contenedor">
           <span>LECB — tus libros y notas nunca salen de tu dispositivo</span>
@@ -257,7 +280,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
   );
 }
 
-function Hero({ onSubir, onDemo, importing }: { onSubir: () => void; onDemo: () => void; importing: boolean }) {
+function Hero({ onSubir, onDemo, onRestaurar, importing }: { onSubir: () => void; onDemo: () => void; onRestaurar: () => void; importing: boolean }) {
   return (
     <section className="hero">
       <div className="contenedor hero-in">
@@ -279,6 +302,10 @@ function Hero({ onSubir, onDemo, importing }: { onSubir: () => void; onDemo: () 
             </button>
           </div>
           <p className="hero-nota">Compatible con EPUB y PDF · En la compu y en el celu</p>
+          <p className="hero-nota">
+            ¿Venís de otro dispositivo?{' '}
+            <button className="enlace" onClick={onRestaurar}>Restaurá tu copia de seguridad</button>
+          </p>
         </div>
 
         {/* Ilustración decorativa: libro abierto y dos tapas */}

@@ -86,3 +86,17 @@ export const CompartirIOS = () => (
     <path d="M7 10H5v10h14V10h-2" />
   </svg>
 );
+
+// Íconos de las opciones de "Pasar página" en el panel Aa.
+export const AnimacionIcono = ({ tipo }: { tipo: 'normal' | 'hoja' | 'ninguna' }) => (
+  <svg viewBox="0 0 24 18" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {tipo === 'normal' && <path d="M4 9h13M13 5l4 4-4 4" />}
+    {tipo === 'hoja' && (
+      <>
+        <path d="M12 3v13M12 3c-2.5-1.3-5.5-1.6-9-1v13c3.5-.6 6.5-.3 9 1" />
+        <path d="M12 3c2-.8 4.2-.6 6.5.8-1 3.5-1 7.7 0 11.4-2.3-1.2-4.5-1.4-6.5-.2" />
+      </>
+    )}
+    {tipo === 'ninguna' && <rect x="5" y="3" width="14" height="12" rx="1.5" />}
+  </svg>
+);

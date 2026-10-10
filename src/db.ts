@@ -103,6 +103,13 @@ export async function getBookFile(id: string) {
   return file.data instanceof Blob ? file.data.arrayBuffer() : file.data;
 }
 
+// El archivo tal como está guardado, como Blob (para la copia de seguridad).
+export async function getBookBlob(id: string) {
+  const file = await (await dbPromise).get('files', id);
+  if (!file) return undefined;
+  return file.data instanceof Blob ? file.data : new Blob([file.data]);
+}
+
 export async function addBook(meta: BookMeta, data: Blob) {
   const db = await dbPromise;
   const tx = db.transaction(['books', 'files'], 'readwrite');

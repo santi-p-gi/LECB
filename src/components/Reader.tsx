@@ -12,7 +12,7 @@ import {
   type Fuente, type Preferencias, type Tema,
 } from '../preferencias';
 import { Cerrar, Cinta, Lista, Lupa, Volver } from './Iconos';
-import { medidas, mismasMedidas, Pagina, PanelAjustes, type Medidas } from './MarcoLibro';
+import { animarFundido, animarHoja, medidas, mismasMedidas, Pagina, PanelAjustes, type Medidas } from './MarcoLibro';
 import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
 import { buscarEnLibro, normalizar, type Resultado } from '../busqueda';
 import './Reader.css';
@@ -32,7 +32,6 @@ const CARACTERES_POR_MINUTO = 1150; // ~230 palabras por minuto
 const URL_FUENTES =
   'https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..600;1,9..144,400..500&family=Literata:ital,opsz,wght@0,7..72,400..600;1,7..72,400&family=EB+Garamond:ital,wght@0,400;0,500;1,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap';
 
-const reducirMovimiento = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 // Una entrada del índice, ya "aplanada" (los subcapítulos tienen nivel > 0).
 interface ItemIndice {
@@ -353,10 +352,18 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
     // Los subrayados guardados se dibujan solos cuando aparece su capítulo.
     for (const s of subrayadosRef.current) dibujarSubrayado(rendition, s);
 
+    const objetivo = cfiActual.current;
     rendition
-      .display(cfiActual.current ?? undefined)
+      .display(objetivo ?? undefined)
       .catch(() => rendition.display()) // si la posición guardada ya no sirve, desde el principio
-      .then(() => {
+      .then(async () => {
+        // Las tipografías pueden terminar de descargarse después de mostrar el texto; al cambiar
+        // la letra el texto se corre y quedaríamos en otra página. Esperamos a que estén y volvemos
+        // a la posición guardada (recién ahí se muestra el libro, así no se ve el salto).
+        const contenidos = rendition.getContents() as unknown as { document?: Document }[];
+        await Promise.all(contenidos.map((c) => c.document?.fonts?.ready));
+        if (objetivo && renditionRef.current === rendition) await rendition.display(objetivo).catch(() => {});
+        if (renditionRef.current !== rendition) return;
         setMostrando(true);
         primeraVista.current.avisar();
       })
@@ -400,13 +407,17 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   function ir(dir: 1 | -1) {
     const r = renditionRef.current;
     if (!r) return;
-    (dir > 0 ? r.next() : r.prev()).then(() => {
-      if (reducirMovimiento()) return;
-      visorRef.current?.animate(
-        [{ opacity: 0.25, transform: `translateX(${dir * 12}px)` }, { opacity: 1, transform: 'none' }],
-        { duration: 280, easing: 'ease-out' },
+    // Al principio o al final del libro no hay a dónde ir: un pequeño "rebote" lo indica.
+    const lugar = r.location as unknown as { atStart?: boolean; atEnd?: boolean } | undefined;
+    if ((dir > 0 && lugar?.atEnd) || (dir < 0 && lugar?.atStart)) {
+      libroRef.current?.animate(
+        [{ transform: 'none' }, { transform: `translateX(${-dir * 8}px)` }, { transform: 'none' }],
+        { duration: 260 },
       );
-    });
+      return;
+    }
+    animarHoja(libroRef.current, visorRef.current, L, dir, prefs.animacion);
+    (dir > 0 ? r.next() : r.prev()).then(() => animarFundido(visorRef.current, dir, prefs.animacion));
   }
 
   function irA(destino: string) {

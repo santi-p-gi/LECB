@@ -72,7 +72,8 @@
      EL LIBRO
      ========================================================= */
   .escenario { position: fixed; inset: 0; display: grid; place-items: center; padding: 68px 0 60px; touch-action: pan-y; }
-  .libro { position: relative; width: calc(var(--pw) * 2); height: var(--ph); cursor: pointer; }
+  /* perspective: da profundidad 3D a la hoja que gira */
+  .libro { position: relative; width: calc(var(--pw) * 2); height: var(--ph); cursor: pointer; perspective: 2600px; }
   /* cabeceras y números de página: que un doble clic al pasar de página no los seleccione */
   .pagina, .canto { user-select: none; -webkit-user-select: none; }
   .libro.una { width: var(--pw); }
@@ -399,4 +400,29 @@
     background: color-mix(in srgb, var(--acento) 35%, transparent);
     animation: aparecer .2s ease-out;
   }
+}
+
+/* =========================================================
+   GIRO LIVIANO DE HOJA
+   ========================================================= */
+.lector {
+  .hoja-giro {
+    position: absolute; top: 0; z-index: 4; pointer-events: none;
+    transform-origin: left center; transform-style: preserve-3d;
+  }
+  .hoja-giro .cara {
+    position: absolute; inset: 0; background: var(--hoja);
+    backface-visibility: hidden; -webkit-backface-visibility: hidden;
+  }
+  /* sombra del lomo en cada cara, como en la maqueta */
+  .hoja-giro .frente {
+    border-radius: 1px 5px 5px 1px;
+    background-image: linear-gradient(to right, var(--lomo), transparent 12%), linear-gradient(to left, rgba(0,0,0,.05), transparent 30%);
+  }
+  .hoja-giro .dorso {
+    transform: rotateY(180deg); border-radius: 5px 1px 1px 5px;
+    background-image: linear-gradient(to left, var(--lomo), transparent 12%), linear-gradient(to right, rgba(0,0,0,.05), transparent 30%);
+  }
+  /* en una sola página la hoja tiene las esquinas redondeadas de ambos lados */
+  .hoja-giro.sola .frente, .hoja-giro.sola .dorso { border-radius: 4px; }
 }

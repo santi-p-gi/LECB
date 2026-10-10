@@ -102,6 +102,30 @@ export async function ubicarCapitulos(book: Book, entradas: { href: string; spin
   return resultado;
 }
 
+// ¿El EPUB tiene DRM (protección anticopia de una tienda)? Si la tiene, el texto viene cifrado
+// y ningún lector externo lo puede mostrar.
+export async function tieneDrm(data: ArrayBuffer): Promise<boolean> {
+  const { default: JSZip } = await import('jszip');
+  const zip = await JSZip.loadAsync(data);
+  // Archivos de licencia de las tiendas: Adobe (el más común), Apple y Readium LCP.
+  if (zip.file('META-INF/rights.xml') || zip.file('META-INF/sinf.xml') || zip.file('META-INF/license.lcpl')) return true;
+
+  // encryption.xml también lo usan libros SIN DRM para "ocultar" las tipografías que incluyen
+  // (ofuscación de fuentes). Solo es DRM si lo cifrado es otra cosa (el texto, las imágenes…).
+  const cifrado = zip.file('META-INF/encryption.xml');
+  if (!cifrado) return false;
+  const xml = new DOMParser().parseFromString(await cifrado.async('string'), 'application/xml');
+  return [...xml.getElementsByTagNameNS('*', 'EncryptedData')].some((dato) => {
+    const algoritmo = dato.getElementsByTagNameNS('*', 'EncryptionMethod')[0]?.getAttribute('Algorithm') ?? '';
+    const archivo = dato.getElementsByTagNameNS('*', 'CipherReference')[0]?.getAttribute('URI') ?? '';
+    const esFuente =
+      /\.(otf|ttf|woff2?)$/i.test(archivo) ||
+      algoritmo === 'http://www.idpf.org/2008/embedding' ||
+      algoritmo === 'http://ns.adobe.com/pdf/enc#RC';
+    return !esFuente;
+  });
+}
+
 export async function readEpubInfo(data: ArrayBuffer) {
   const book = abrirEpub(data);
   try {

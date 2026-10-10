@@ -1,7 +1,7 @@
 // Componente principal: decide si mostramos la biblioteca o el lector.
 import { useEffect, useState } from 'react';
 import { addBook, deleteBook, getAllBooks, type BookMeta } from './db';
-import { readEpubInfo } from './epub';
+import { readEpubInfo, tieneDrm } from './epub';
 import { enMB, esFaltaDeEspacio, espacioLibre, pedirPersistencia, TAMANO_AVISO, TAMANO_MAXIMO } from './almacenamiento';
 import Library from './components/Library';
 import Lector from './components/Lector';
@@ -11,6 +11,12 @@ const LIBRO_DEMO = '/libros/don-quijote.epub';
 
 const esPdf = (archivo: Blob, nombre: string) =>
   archivo.type === 'application/pdf' || nombre.toLowerCase().endsWith('.pdf');
+
+const MENSAJE_DRM = 'tiene DRM, la protección anticopia de la tienda donde se compró';
+const EXPLICACION_DRM =
+  'El DRM es una protección que ponen algunas tiendas (Amazon, Google Play Libros, Apple Books y otras) para que ' +
+  'el libro solo se pueda leer en su propia aplicación. LECB no puede abrir esos libros. Los EPUB sin DRM ' +
+  '(dominio público, muchos autores independientes y editoriales) funcionan perfecto.';
 
 // Error con un mensaje pensado para mostrarle al usuario.
 class ErrorImportacion extends Error {}
@@ -56,8 +62,13 @@ export default function App() {
         // pdf.js se descarga recién la primera vez que se importa un PDF.
         const { readPdfInfo } = await import('./pdf');
         info = await readPdfInfo(datos, nombre);
-      } else info = await readEpubInfo(datos);
+      } else {
+        // Los libros con DRM se reconocen antes de intentar leerlos, para explicar bien qué pasa.
+        if (await tieneDrm(datos)) throw new ErrorImportacion(MENSAJE_DRM);
+        info = await readEpubInfo(datos);
+      }
     } catch (err) {
+      if (err instanceof ErrorImportacion) throw err;
       console.error(err);
       if ((err as { name?: string } | null)?.name === 'PasswordException') throw new ErrorImportacion('el PDF tiene contraseña');
       throw new ErrorImportacion(formato === 'pdf' ? 'no es un PDF válido' : 'no es un EPUB válido');
@@ -127,14 +138,16 @@ export default function App() {
         if (libre !== null) libre -= file.size;
       } catch (err) {
         failed.push(`${file.name} (${err instanceof ErrorImportacion ? err.message : 'error inesperado'})`);
-        contarEvento('importar-error');
+        const esDrm = err instanceof ErrorImportacion && err.message === MENSAJE_DRM;
+        contarEvento(esDrm ? 'importar-drm' : 'importar-error');
       }
     }
 
     setImporting(false);
     await refreshBooks();
     if (failed.length) {
-      alert(`No se pudieron importar estos archivos:\n${failed.join('\n')}`);
+      const hayDrm = failed.some((f) => f.includes(MENSAJE_DRM));
+      alert(`No se pudieron importar estos archivos:\n${failed.join('\n')}${hayDrm ? `\n\n${EXPLICACION_DRM}` : ''}`);
     } else if (files.length === 1 && ultimo) {
       abrirMarcado(ultimo);
     }
@@ -182,6 +195,7 @@ export default function App() {
       onDemo={handleDemo}
       onOpen={abrirMarcado}
       onDelete={handleDelete}
+      onBibliotecaCambiada={refreshBooks}
     />
   );
 }

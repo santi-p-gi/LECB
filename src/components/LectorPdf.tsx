@@ -8,13 +8,12 @@ import {
   type DocumentoPdf, type EntradaIndicePdf, type ResultadoPdf,
 } from '../pdf';
 import { normalizar } from '../busqueda';
-import { medidasPdf, mismasMedidas, Pagina, PanelAjustes } from './MarcoLibro';
+import { animarFundido, animarHoja, medidasPdf, mismasMedidas, Pagina, PanelAjustes } from './MarcoLibro';
 import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
 import { Cerrar, Cinta, Lista, Lupa, Volver } from './Iconos';
 import './Reader.css';
 import { contarEvento } from '../estadisticas';
 
-const reducirMovimiento = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
 /* ---------- una página del PDF dibujada en un canvas ---------- */
 
@@ -204,13 +203,9 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
       );
       return;
     }
+    animarHoja(libroRef.current, contenidoRef.current, L, dir, prefs.animacion);
     setActual(nuevo);
-    if (!reducirMovimiento()) {
-      contenidoRef.current?.animate(
-        [{ opacity: 0.3, transform: `translateX(${dir * 12}px)` }, { opacity: 1, transform: 'none' }],
-        { duration: 280, easing: 'ease-out' },
-      );
-    }
+    animarFundido(contenidoRef.current, dir, prefs.animacion);
   }
 
   function irAPagina(p: number) {

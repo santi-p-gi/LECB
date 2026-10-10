@@ -249,6 +249,7 @@
 .subir h2 { font: 500 26px/1.2 var(--f-display); margin: 0 0 8px; }
 .subir p { margin: 0 0 24px; color: var(--tinta-2); }
 .subir small { display: block; margin-top: 18px; color: var(--tinta-3); font-size: 12.5px; }
+.subir small.nota-drm { margin-top: 6px; }
 @media (max-width: 600px) { .subir { padding: 44px 18px; } .subir h2 { font-size: 22px; } }
 
 /* =========================================================
@@ -273,17 +274,29 @@
   .boton-instalar span { display: none; } /* en el celular, solo el ícono */
   .boton-instalar { width: 38px; padding: 0; justify-content: center; }
 }
-.ayuda-fondo {
+.dialogo-fondo {
   position: fixed; inset: 0; z-index: 50; display: grid; place-items: end center; padding: 16px;
   background: rgba(20,15,10,.4);
 }
-.ayuda-ios {
-  width: min(440px, 100%); background: var(--superficie); border-radius: 22px; padding: 24px;
+.dialogo {
+  width: min(460px, 100%); background: var(--superficie); border-radius: 22px; padding: 24px;
   box-shadow: 0 30px 60px -20px rgba(0,0,0,.5); margin-bottom: 12px;
 }
-.ayuda-ios h2 { font: 500 22px/1.2 var(--f-display); margin: 0 0 14px; }
+.dialogo h2 { font: 500 22px/1.2 var(--f-display); margin: 0 0 14px; }
 .ayuda-ios ol { margin: 0 0 14px; padding-left: 20px; display: grid; gap: 10px; }
 .ayuda-ios p { margin: 0 0 18px; color: var(--tinta-2); font-size: 14.5px; }
 .ayuda-ios .btn { width: 100%; justify-content: center; }
 .icono-linea { display: inline-grid; vertical-align: -4px; width: 20px; height: 20px; color: #2f7bf6; }
 .icono-linea svg { width: 20px; height: 20px; }
+
+/* =========================================================
+   COPIA DE SEGURIDAD
+   ========================================================= */
+.dialogo > p { margin: 0 0 18px; color: var(--tinta-2); font-size: 14.5px; }
+.dialogo-acciones { display: grid; gap: 10px; }
+.dialogo-acciones .btn { width: 100%; justify-content: center; height: auto; min-height: 48px; padding: 10px 22px; flex-direction: column; gap: 2px; }
+.dialogo-acciones .btn small { font-size: 12px; font-weight: 400; opacity: .75; }
+.dialogo-mensaje { margin: 16px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--papel-2); font-size: 14px; }
+.dialogo-error { margin: 16px 0 0; padding: 12px 14px; border-radius: 12px; background: var(--acento-suave); color: var(--acento); font-size: 14px; }
+.dialogo-cerrar { display: block; margin: 18px auto 0; }
+@media (min-width: 700px) { .dialogo-fondo { place-items: center; } }

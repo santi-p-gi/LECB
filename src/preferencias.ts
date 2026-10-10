@@ -3,6 +3,8 @@
 
 export type Tema = 'papel' | 'sepia' | 'noche';
 export type Fuente = 'literata' | 'garamond' | 'atkinson';
+// Cómo se ve el paso de página: fundido suave, hoja que gira, o sin animación.
+export type Animacion = 'normal' | 'hoja' | 'ninguna';
 
 export interface Preferencias {
   tema: Tema;
@@ -11,6 +13,7 @@ export interface Preferencias {
   lh: number; // interlineado
   doble: boolean;
   notasMargen: boolean; // tarjetas con las notas al costado del libro (pantallas anchas)
+  animacion: Animacion;
 }
 
 export const TAMANOS = [15, 16, 17, 18, 20, 22, 24];
@@ -27,6 +30,12 @@ export const TEMAS: Record<Tema, { nombre: string; hoja: string; texto: string; 
   sepia: { nombre: 'Sepia', hoja: '#f3e7cc', texto: '#43341f', texto2: '#8a7352', acento: '#8c3a1f' },
   noche: { nombre: 'Noche', hoja: '#1e1b17', texto: '#d6ccbb', texto2: '#8a806f', acento: '#e08a6d' },
 };
+
+export const ANIMACIONES: { valor: Animacion; nombre: string }[] = [
+  { valor: 'normal', nombre: 'Normal' },
+  { valor: 'hoja', nombre: 'Hoja' },
+  { valor: 'ninguna', nombre: 'Sin animación' },
+];
 
 export const INTERLINEADOS = [
   { valor: 1.45, nombre: 'Compacto' },
@@ -46,6 +55,7 @@ export function cargarPreferencias(): Preferencias {
     lh: 1.6,
     doble: true,
     notasMargen: true,
+    animacion: 'normal',
   };
   try {
     return { ...base, ...JSON.parse(localStorage.getItem(CLAVE) || '{}') };
