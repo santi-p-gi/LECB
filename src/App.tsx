@@ -2,11 +2,15 @@
 import { useEffect, useState } from 'react';
 import { addBook, deleteBook, getAllBooks, type BookMeta } from './db';
 import { readEpubInfo } from './epub';
+import { esPdfConClave, readPdfInfo } from './pdf';
 import { enMB, esFaltaDeEspacio, espacioLibre, pedirPersistencia, TAMANO_AVISO, TAMANO_MAXIMO } from './almacenamiento';
 import Library from './components/Library';
-import Reader from './components/Reader';
+import Lector from './components/Lector';
 
 const LIBRO_DEMO = '/libros/don-quijote.epub';
+
+const esPdf = (archivo: Blob, nombre: string) =>
+  archivo.type === 'application/pdf' || nombre.toLowerCase().endsWith('.pdf');
 
 // Error con un mensaje pensado para mostrarle al usuario.
 class ErrorImportacion extends Error {}
@@ -41,29 +45,34 @@ export default function App() {
 
   // Guarda un archivo en la biblioteca y devuelve su id.
   // Lanza ErrorImportacion con un mensaje para el usuario si algo sale mal.
-  async function importar(archivo: Blob, extra: Partial<BookMeta> = {}) {
-    let info;
+  async function importar(archivo: Blob, nombre: string, extra: Partial<BookMeta> = {}) {
+    const formato = esPdf(archivo, nombre) ? 'pdf' : 'epub';
+    let info: Awaited<ReturnType<typeof readEpubInfo>> & { paginas?: number };
     try {
-      // epub.js necesita el archivo en memoria solo para leer título y portada;
+      // Se lee el archivo en memoria solo para sacar título y portada;
       // después se libera y en la base guardamos el Blob (sin otra copia en memoria).
-      info = await readEpubInfo(await archivo.arrayBuffer());
+      const datos = await archivo.arrayBuffer();
+      info = formato === 'pdf' ? await readPdfInfo(datos, nombre) : await readEpubInfo(datos);
     } catch (err) {
       console.error(err);
-      throw new ErrorImportacion('no es un EPUB válido');
+      if (esPdfConClave(err)) throw new ErrorImportacion('el PDF tiene contraseña');
+      throw new ErrorImportacion(formato === 'pdf' ? 'no es un PDF válido' : 'no es un EPUB válido');
     }
+    const { paginas, ...datosLibro } = info;
     const id = crypto.randomUUID();
     try {
       await addBook(
         {
           id,
-          ...info,
+          formato,
+          ...datosLibro,
           size: archivo.size,
           addedAt: Date.now(),
           lastOpenedAt: null,
           location: null,
           progress: 0,
           page: null,
-          pages: null,
+          pages: paginas ?? null,
           excerpt: null,
           locations: null,
           capitulos: null,
@@ -109,7 +118,7 @@ export default function App() {
         continue;
       }
       try {
-        ultimo = await importar(file);
+        ultimo = await importar(file, file.name);
         if (libre !== null) libre -= file.size;
       } catch (err) {
         failed.push(`${file.name} (${err instanceof ErrorImportacion ? err.message : 'error inesperado'})`);
@@ -132,7 +141,7 @@ export default function App() {
     setImporting(true);
     try {
       const respuesta = await fetch(LIBRO_DEMO);
-      const id = await importar(await respuesta.blob());
+      const id = await importar(await respuesta.blob(), 'don-quijote.epub');
       await refreshBooks();
       abrirMarcado(id);
     } catch (err) {
@@ -155,7 +164,7 @@ export default function App() {
   }
 
   if (openBookId) {
-    return <Reader key={openBookId} bookId={openBookId} onClose={cerrar} />;
+    return <Lector key={openBookId} bookId={openBookId} onClose={cerrar} />;
   }
 
   return (

@@ -21,7 +21,7 @@ interface LibraryProps {
 type Orden = 'recientes' | 'titulo' | 'autor';
 const ORDENES: Record<Orden, string> = { recientes: 'Recientes', titulo: 'Título', autor: 'Autor' };
 
-const isEpub = (file: File) => file.name.toLowerCase().endsWith('.epub');
+const esLibro = (file: File) => /.(epub|pdf)$/i.test(file.name);
 
 export default function Library({ books, importing, onImport, onDemo, onOpen, onDelete }: LibraryProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -33,9 +33,9 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
 
   function importarArchivos(fileList: FileList | null) {
     const todos = Array.from(fileList ?? []);
-    const epubs = todos.filter(isEpub);
-    if (epubs.length) onImport(epubs);
-    else if (todos.length) alert('Solo se pueden importar archivos .epub');
+    const libros = todos.filter(esLibro);
+    if (libros.length) onImport(libros);
+    else if (todos.length) alert('Solo se pueden importar archivos .epub o .pdf');
   }
 
   // Arrastrar archivos funciona en toda la página, no solo en la zona de subir.
@@ -79,7 +79,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
       <input
         ref={fileInputRef}
         type="file"
-        accept=".epub,application/epub+zip"
+        accept=".epub,.pdf,application/epub+zip,application/pdf"
         multiple
         hidden
         onChange={(e) => {
@@ -105,7 +105,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
               <Luna />
             </button>
             <button className="btn btn-primario btn-chico" onClick={elegirArchivo} disabled={importing}>
-              {importing ? 'Importando…' : 'Subir EPUB'}
+              {importing ? 'Importando…' : 'Subir libro'}
             </button>
           </div>
         </div>
@@ -181,10 +181,10 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
               onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && elegirArchivo()}
             >
               <span className="subir-icono"><Subir /></span>
-              <h2>{importing ? 'Importando…' : 'Arrastrá tu archivo .epub acá'}</h2>
+              <h2>{importing ? 'Importando…' : 'Arrastrá tu archivo .epub o .pdf acá'}</h2>
               <p>Lo agregamos a tu estantería y lo abrimos donde lo dejaste.</p>
               <span className="btn btn-primario">Elegir archivo</span>
-              <small>EPUB 2 y 3 · hasta {enMB(TAMANO_MAXIMO)} · tus libros quedan solo en este navegador</small>
+              <small>EPUB y PDF · hasta {enMB(TAMANO_MAXIMO)} · tus libros quedan solo en este navegador</small>
             </div>
           </div>
         </section>
@@ -232,7 +232,7 @@ function Hero({ onSubir, onDemo, importing }: { onSubir: () => void; onDemo: () 
     <section className="hero">
       <div className="contenedor hero-in">
         <div>
-          <p className="eyebrow">Lector de EPUB</p>
+          <p className="eyebrow">Lector de EPUB y PDF</p>
           <h1>
             Leer como en papel, <em>en cualquier pantalla.</em>
           </h1>
@@ -248,7 +248,7 @@ function Hero({ onSubir, onDemo, importing }: { onSubir: () => void; onDemo: () 
               Probar con Don Quijote →
             </button>
           </div>
-          <p className="hero-nota">Compatible con EPUB 2 y 3 · En la compu y en el celu</p>
+          <p className="hero-nota">Compatible con EPUB y PDF · En la compu y en el celu</p>
         </div>
 
         {/* Ilustración decorativa: libro abierto y dos tapas */}
@@ -291,6 +291,7 @@ function Hero({ onSubir, onDemo, importing }: { onSubir: () => void; onDemo: () 
 function TarjetaLectura({ book, destacada, onOpen }: { book: BookMeta; destacada: boolean; onOpen: () => void }) {
   const porcentaje = Math.round(book.progress * 100);
   const pagina = book.page && book.pages ? `Pág. ${book.page} de ${book.pages}` : 'Empezado';
+  const formato = book.formato === 'pdf' ? 'PDF · ' : '';
   return (
     <button className={`tarjeta ${destacada ? 'destacada' : ''}`} onClick={onOpen}>
       <Portada book={book} />
@@ -307,7 +308,7 @@ function TarjetaLectura({ book, destacada, onOpen }: { book: BookMeta; destacada
             <span style={{ width: `${porcentaje}%` }} />
           </div>
           <div className="meta">
-            <span>{pagina}</span>
+            <span>{formato}{pagina}</span>
             <span>{porcentaje} %</span>
           </div>
         </div>

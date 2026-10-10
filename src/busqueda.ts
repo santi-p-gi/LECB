@@ -16,8 +16,8 @@ export const MAX_RESULTADOS = 300;
 
 /* ---------- normalizar letras (rápido, con tabla) ---------- */
 
-const ESPACIO = 32;
-const OMITIR = -1; // marcas de tilde sueltas: no cuentan como letra
+export const ESPACIO = 32;
+export const OMITIR = -1; // marcas de tilde sueltas: no cuentan como letra
 
 // Para cada código de letra, su versión sin tilde y en minúscula. Se calcula una sola vez.
 const TABLA = new Int32Array(0x300);
@@ -30,7 +30,7 @@ function esEspacio(c: number) {
   return c === 9 || c === 10 || c === 13 || c === 32 || c === 160 || (c >= 0x2000 && c <= 0x200a) || c === 0x202f || c === 0x3000;
 }
 
-function normalizarCodigo(c: number) {
+export function normalizarCodigo(c: number) {
   if (esEspacio(c)) return ESPACIO;
   if (c < TABLA.length) return TABLA[c];
   if (c >= 0x300 && c <= 0x36f) return OMITIR; // tildes combinadas sueltas

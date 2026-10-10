@@ -26,6 +26,7 @@ export interface Subrayado {
 // Datos de cada libro que mostramos en la biblioteca.
 export interface BookMeta {
   id: string;
+  formato: 'epub' | 'pdf';
   title: string;
   author: string;
   cover: Blob | null; // imagen de portada
@@ -62,6 +63,7 @@ const dbPromise = openDB<LibraryDB>('biblioteca', 1, {
 // Los libros importados en la Fase 1 no tienen los campos nuevos: los completamos.
 function completar(book: Partial<BookMeta> & { id: string; title: string }): BookMeta {
   return {
+    formato: 'epub',
     author: 'Autor desconocido',
     cover: null,
     color: colorDeRespaldo(book.title),

@@ -378,3 +378,23 @@
   .resultado:hover .resultado-texto { color: var(--acento); }
   .resultado-meta { font-size: 12px; color: var(--texto-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 }
+
+/* =========================================================
+   PDF
+   ========================================================= */
+.lector {
+  /* sin z-index: así el PDF se "mezcla" con el color de la hoja y deja ver la sombra del lomo */
+  .contenido-pdf { position: absolute; inset: 0; pointer-events: none; }
+  .pagina-pdf { position: absolute; display: grid; place-items: center; }
+  .lienzo-pdf { position: relative; }
+  .lienzo-pdf canvas { display: block; }
+  /* El blanco del PDF toma el color de la hoja; sepia y noche se logran con filtros de color. */
+  .pdf-papel canvas { mix-blend-mode: multiply; }
+  .pdf-sepia canvas { mix-blend-mode: multiply; filter: sepia(.3) saturate(1.1); }
+  .pdf-noche canvas { filter: invert(.88) hue-rotate(180deg) contrast(.95); }
+  .resalte-pdf {
+    position: absolute; border-radius: 2px; pointer-events: none;
+    background: color-mix(in srgb, var(--acento) 35%, transparent);
+    animation: aparecer .2s ease-out;
+  }
+}

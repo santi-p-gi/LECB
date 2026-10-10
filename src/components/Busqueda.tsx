@@ -9,16 +9,16 @@ export interface ResultadoMostrado extends Resultado {
   capitulo: string;
 }
 
-interface Props {
+interface Props<T extends ResultadoMostrado> {
   abierto: boolean;
   consulta: string;
   onConsulta: (texto: string) => void;
   estado: EstadoBusqueda;
-  resultados: ResultadoMostrado[];
-  onIr: (r: ResultadoMostrado) => void;
+  resultados: T[];
+  onIr: (r: T) => void;
 }
 
-export default function PanelBusqueda({ abierto, consulta, onConsulta, estado, resultados, onIr }: Props) {
+export default function PanelBusqueda<T extends ResultadoMostrado>({ abierto, consulta, onConsulta, estado, resultados, onIr }: Props<T>) {
   const campo = useRef<HTMLInputElement>(null);
   // Al abrir el panel, el cursor queda listo para escribir.
   useEffect(() => {
