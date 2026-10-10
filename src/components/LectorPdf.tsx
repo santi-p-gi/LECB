@@ -12,6 +12,7 @@ import { medidasPdf, mismasMedidas, Pagina, PanelAjustes } from './MarcoLibro';
 import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
 import { Cerrar, Cinta, Lista, Lupa, Volver } from './Iconos';
 import './Reader.css';
+import { contarEvento } from '../estadisticas';
 
 const reducirMovimiento = () => window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false;
 
@@ -303,6 +304,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   /* ---------- marcadores (uno por página) ---------- */
   const marcada = marcadores.some((m) => visibles.includes(Number(m.cfi)));
   function alternarMarcador() {
+    if (!marcada) contarEvento('marcador');
     const nuevos = marcada
       ? marcadores.filter((m) => !visibles.includes(Number(m.cfi)))
       : [...marcadores, { cfi: String(inicio), etiqueta: capitulo?.label ?? '', pagina: inicio + 1, creado: Date.now() }]
@@ -328,7 +330,9 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
         (nuevos) => setResultados((previos) => [...previos, ...nuevos]),
         () => busquedaActual.current !== id,
       ).then((fin) => {
-        if (fin !== 'cancelada') setEstadoBusqueda(fin);
+        if (fin === 'cancelada') return;
+        setEstadoBusqueda(fin);
+        contarEvento('busqueda');
       });
     }, 350);
     return () => clearTimeout(reloj);

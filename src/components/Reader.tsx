@@ -16,6 +16,7 @@ import { medidas, mismasMedidas, Pagina, PanelAjustes, type Medidas } from './Ma
 import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
 import { buscarEnLibro, normalizar, type Resultado } from '../busqueda';
 import './Reader.css';
+import { contarEvento } from '../estadisticas';
 
 interface ReaderProps {
   bookId: string;
@@ -628,6 +629,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
       creado: Date.now(),
     };
     guardarSubrayados([...subrayados, nuevo].sort((a, b) => compararCfi(a.cfi, b.cfi)));
+    contarEvento('subrayado');
     dibujarSubrayado(r, nuevo);
     cerrarMenu();
     if (conNota) setNotaAbierta(nuevo.id);
@@ -654,6 +656,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   }
 
   function guardarNota(id: string, nota: string) {
+    if (nota.trim() && !subrayados.find((s) => s.id === id)?.nota) contarEvento('nota');
     guardarSubrayados(subrayados.map((s) => (s.id === id ? { ...s, nota: nota.trim() || null } : s)));
     setNotaAbierta(null);
   }
@@ -713,7 +716,9 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
         (nuevos) => setResultados((previos) => [...previos, ...nuevos]),
         () => busquedaActual.current !== id,
       ).then((fin) => {
-        if (fin !== 'cancelada') setEstadoBusqueda(fin);
+        if (fin === 'cancelada') return;
+        setEstadoBusqueda(fin);
+        contarEvento('busqueda');
       });
     }, 350);
     return () => clearTimeout(reloj);
@@ -754,6 +759,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   const marcada = marcadoresAqui.length > 0;
 
   function alternarMarcador() {
+    if (!marcada) contarEvento('marcador');
     if (!pos) return;
     const nuevos = marcada
       ? marcadores.filter((m) => !marcadoresAqui.includes(m))

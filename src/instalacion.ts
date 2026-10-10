@@ -1,6 +1,7 @@
 // Todo lo de "instalar LECB como app": registrar el service worker y el botón "Instalar app".
 import { useEffect, useState } from 'react';
 import { pedirPersistencia } from './almacenamiento';
+import { contarEvento } from './estadisticas';
 
 // Evento que Chrome, Edge y Android disparan cuando la web se puede instalar.
 // (No está en los tipos estándar de TypeScript porque no todos los navegadores lo tienen.)
@@ -20,6 +21,7 @@ window.addEventListener('beforeinstallprompt', (e) => {
   avisar();
 });
 window.addEventListener('appinstalled', () => {
+  contarEvento('app-instalada');
   eventoGuardado = null;
   avisar();
 });

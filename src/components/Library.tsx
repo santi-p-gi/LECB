@@ -249,8 +249,8 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
 
       <footer className="pie">
         <div className="contenedor">
-          <span>LECB — tus libros no salen de tu navegador</span>
-          <span>Fraunces · Literata · Inter</span>
+          <span>LECB — tus libros y notas nunca salen de tu dispositivo</span>
+          <span>Contamos visitas de forma anónima y sin cookies (GoatCounter)</span>
         </div>
       </footer>
     </div>

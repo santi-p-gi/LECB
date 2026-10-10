@@ -5,6 +5,7 @@ import { readEpubInfo } from './epub';
 import { enMB, esFaltaDeEspacio, espacioLibre, pedirPersistencia, TAMANO_AVISO, TAMANO_MAXIMO } from './almacenamiento';
 import Library from './components/Library';
 import Lector from './components/Lector';
+import { contarEvento } from './estadisticas';
 
 const LIBRO_DEMO = '/libros/don-quijote.epub';
 
@@ -122,9 +123,11 @@ export default function App() {
       }
       try {
         ultimo = await importar(file, file.name);
+        contarEvento(esPdf(file, file.name) ? 'importar-pdf' : 'importar-epub');
         if (libre !== null) libre -= file.size;
       } catch (err) {
         failed.push(`${file.name} (${err instanceof ErrorImportacion ? err.message : 'error inesperado'})`);
+        contarEvento('importar-error');
       }
     }
 
@@ -140,6 +143,7 @@ export default function App() {
   // Abre el libro de muestra (dominio público). Si ya está en la biblioteca, lo reutiliza.
   async function handleDemo() {
     const existente = books?.find((b) => b.title === 'Don Quijote' && b.author.includes('Cervantes'));
+    contarEvento('probar-demo');
     if (existente) return abrirMarcado(existente.id);
     setImporting(true);
     try {
