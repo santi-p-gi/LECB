@@ -1,8 +1,9 @@
 // Elige el lector según el formato del libro (EPUB o PDF).
-import { useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useState } from 'react';
 import { getBook } from '../db';
 import Reader from './Reader';
-import LectorPdf from './LectorPdf';
+// El lector de PDF (y pdf.js, que es pesado) se descarga recién cuando se abre un PDF.
+const LectorPdf = lazy(() => import('./LectorPdf'));
 import './Reader.css';
 
 export default function Lector({ bookId, onClose }: { bookId: string; onClose: () => void }) {
@@ -12,5 +13,10 @@ export default function Lector({ bookId, onClose }: { bookId: string; onClose: (
   }, [bookId]);
 
   if (!formato) return <div className="lector" />; // un instante, mientras se lee el formato
-  return formato === 'pdf' ? <LectorPdf bookId={bookId} onClose={onClose} /> : <Reader bookId={bookId} onClose={onClose} />;
+  if (formato === 'epub') return <Reader bookId={bookId} onClose={onClose} />;
+  return (
+    <Suspense fallback={<div className="lector" />}>
+      <LectorPdf bookId={bookId} onClose={onClose} />
+    </Suspense>
+  );
 }

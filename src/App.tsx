@@ -2,7 +2,6 @@
 import { useEffect, useState } from 'react';
 import { addBook, deleteBook, getAllBooks, type BookMeta } from './db';
 import { readEpubInfo } from './epub';
-import { esPdfConClave, readPdfInfo } from './pdf';
 import { enMB, esFaltaDeEspacio, espacioLibre, pedirPersistencia, TAMANO_AVISO, TAMANO_MAXIMO } from './almacenamiento';
 import Library from './components/Library';
 import Lector from './components/Lector';
@@ -52,10 +51,14 @@ export default function App() {
       // Se lee el archivo en memoria solo para sacar título y portada;
       // después se libera y en la base guardamos el Blob (sin otra copia en memoria).
       const datos = await archivo.arrayBuffer();
-      info = formato === 'pdf' ? await readPdfInfo(datos, nombre) : await readEpubInfo(datos);
+      if (formato === 'pdf') {
+        // pdf.js se descarga recién la primera vez que se importa un PDF.
+        const { readPdfInfo } = await import('./pdf');
+        info = await readPdfInfo(datos, nombre);
+      } else info = await readEpubInfo(datos);
     } catch (err) {
       console.error(err);
-      if (esPdfConClave(err)) throw new ErrorImportacion('el PDF tiene contraseña');
+      if ((err as { name?: string } | null)?.name === 'PasswordException') throw new ErrorImportacion('el PDF tiene contraseña');
       throw new ErrorImportacion(formato === 'pdf' ? 'no es un PDF válido' : 'no es un EPUB válido');
     }
     const { paginas, ...datosLibro } = info;
