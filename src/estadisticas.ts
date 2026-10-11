@@ -23,7 +23,8 @@ export type Evento =
   | 'importar-drm'
   | 'copia-exportada'
   | 'copia-restaurada'
-  | 'ver-fuente';
+  | 'ver-fuente'
+  | 'voz';
 
 export function contarEvento(evento: Evento) {
   const gc = (window as Window & { goatcounter?: GoatCounter }).goatcounter;

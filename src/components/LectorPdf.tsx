@@ -12,6 +12,7 @@ import { animarFundido, animarHoja, medidasPdf, mismasMedidas, Pagina, PanelAjus
 import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
 import { Cerrar, Cinta, Lista, Lupa, Volver } from './Iconos';
 import './Reader.css';
+import GuiaLector, { guiaYaVista } from './Guia';
 import { contarEvento } from '../estadisticas';
 
 
@@ -178,6 +179,12 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
 
   useEffect(() => guardarPreferencias(prefs), [prefs]);
 
+  // La primera vez que se abre un libro (en este navegador) se muestra la guía rápida.
+  const [guia, setGuia] = useState(false);
+  useEffect(() => {
+    if (pdf && !guiaYaVista()) setGuia(true);
+  }, [pdf]);
+
   /* ---------- guardar el progreso al cambiar de página ---------- */
   useEffect(() => {
     if (!pdf) return;
@@ -261,6 +268,11 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   // La última versión de la función de teclado (para que el listener vea el estado actual).
   const teclado = useRef((_: KeyboardEvent) => {});
   teclado.current = (e: KeyboardEvent) => {
+    // Con la guía abierta, el teclado no mueve el libro (Escape la cierra).
+    if (guia) {
+      if (e.key === 'Escape') setGuia(false);
+      return;
+    }
     if (e.key === 'Escape') {
       setPanel(null);
       return;
@@ -462,7 +474,17 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
         <span className="info-b">{total ? `${Math.round(progreso * 100)} % leído` : ''}</span>
       </footer>
 
-      <PanelAjustes abierto={panel === 'ajustes'} prefs={prefs} onCambiar={(c) => setPrefs({ ...prefs, ...c })} soloTema />
+      <PanelAjustes
+        abierto={panel === 'ajustes'}
+        prefs={prefs}
+        onCambiar={(c) => setPrefs({ ...prefs, ...c })}
+        soloTema
+        onVerGuia={() => {
+          setPanel(null);
+          setGuia(true);
+        }}
+      />
+      {guia && <GuiaLector conSubrayados={false} onCerrar={() => setGuia(false)} />}
 
       <aside className={`cajon ${cajonAbierto ? 'abierto' : ''}`} aria-label="Índice" aria-hidden={!cajonAbierto}>
         <div className="cajon-cab">

@@ -75,6 +75,7 @@ function combinar(actual: BookMeta, copia: LibroEnCopia): Partial<BookMeta> {
   const cambios: Partial<BookMeta> = {
     highlights: unir<Subrayado>(actual.highlights, copia.highlights ?? [], (s) => s.id, copiaMasReciente),
     bookmarks: unir<Marcador>(actual.bookmarks, copia.bookmarks ?? [], (m) => m.cfi, copiaMasReciente),
+    colecciones: [...new Set([...actual.colecciones, ...(copia.colecciones ?? [])])],
   };
   if (copiaMasReciente) {
     Object.assign(cambios, {

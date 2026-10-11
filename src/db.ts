@@ -43,6 +43,7 @@ export interface BookMeta {
   capitulos: (string | null)[] | null; // dónde empieza cada entrada del índice (CFI)
   bookmarks: Marcador[];
   highlights: Subrayado[];
+  colecciones: string[]; // etiquetas de la estantería ("Facultad", "Novelas"…)
 }
 
 // Guardamos el archivo EPUB aparte para que listar la biblioteca sea liviano.
@@ -79,6 +80,7 @@ function completar(book: Partial<BookMeta> & { id: string; title: string }): Boo
     capitulos: null,
     bookmarks: [],
     highlights: [],
+    colecciones: [],
     ...book,
   };
 }

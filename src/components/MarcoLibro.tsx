@@ -65,7 +65,7 @@ export function Pagina({ lado, cabecera, folio }: { lado: 'izq' | 'der' | 'unica
 }
 
 // soloTema: para PDF, donde la tipografía no se puede cambiar.
-export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false }: { abierto: boolean; prefs: Preferencias; onCambiar: (c: Partial<Preferencias>) => void; soloTema?: boolean }) {
+export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false, onVerGuia }: { abierto: boolean; prefs: Preferencias; onCambiar: (c: Partial<Preferencias>) => void; soloTema?: boolean; onVerGuia?: () => void }) {
   const dobleDisponible = window.innerWidth >= 820;
   return (
     <aside className={`panel ${abierto ? 'abierto' : ''}`} aria-label="Ajustes de lectura" aria-hidden={!abierto}>
@@ -153,6 +153,11 @@ export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false }: { 
           />
         </label>
       </div>
+      {onVerGuia && (
+        <button className="ver-guia" onClick={onVerGuia}>
+          Ver la guía de nuevo
+        </button>
+      )}
     </aside>
   );
 }

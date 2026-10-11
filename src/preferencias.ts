@@ -14,6 +14,8 @@ export interface Preferencias {
   doble: boolean;
   notasMargen: boolean; // tarjetas con las notas al costado del libro (pantallas anchas)
   animacion: Animacion;
+  voz: string | null; // voz elegida para leer en voz alta (null = la que elija el dispositivo)
+  velocidadVoz: number;
 }
 
 export const TAMANOS = [15, 16, 17, 18, 20, 22, 24];
@@ -56,6 +58,8 @@ export function cargarPreferencias(): Preferencias {
     doble: true,
     notasMargen: true,
     animacion: 'normal',
+    voz: null,
+    velocidadVoz: 1,
   };
   try {
     return { ...base, ...JSON.parse(localStorage.getItem(CLAVE) || '{}') };

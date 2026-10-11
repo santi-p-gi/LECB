@@ -1,12 +1,13 @@
 // Pantalla de inicio y biblioteca (maqueta "inicio.html").
 import { useRef, useState, type CSSProperties, type DragEvent } from 'react';
-import type { BookMeta } from '../db';
+import { updateBook, type BookMeta } from '../db';
 import { colorTexto, hashTexto } from '../colores';
 import { guardarTemaSitio } from '../preferencias';
 import { enMB, TAMANO_MAXIMO } from '../almacenamiento';
 import Portada from './Portada';
 import CopiaSeguridad from './CopiaSeguridad';
 import Fuentes from './Fuentes';
+import { cargarFiltro, contarColecciones, FiltrosColecciones, guardarFiltro, VentanaColecciones } from './Colecciones';
 import { Cinta, CompartirIOS, Instalar, LibroAbierto, Logo, Luna, Subir, Tipografia } from './Iconos';
 import { useInstalacion } from '../instalacion';
 import './Library.css';
@@ -32,6 +33,8 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
   const [arrastrando, setArrastrando] = useState(false);
   const [orden, setOrden] = useState<Orden>('recientes');
   const [editando, setEditando] = useState(false);
+  const [filtro, setFiltro] = useState<string | null>(cargarFiltro);
+  const [libroColecciones, setLibroColecciones] = useState<BookMeta | null>(null);
   const [ayudaIOS, setAyudaIOS] = useState(false);
   const [copiaAbierta, setCopiaAbierta] = useState(false);
   const instalacion = useInstalacion();
@@ -71,7 +74,10 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
 
   const vacia = books !== null && books.length === 0;
   const leyendo = (books ?? []).filter((b) => b.lastOpenedAt !== null).slice(0, 3);
-  const estante = [...(books ?? [])].sort((a, b) =>
+  const colecciones = contarColecciones(books ?? []);
+  // Si la colección elegida ya no existe (se vaciaron sus libros), se muestran todos.
+  const filtroActivo = filtro && colecciones.some(([c]) => c === filtro) ? filtro : null;
+  const estante = [...(books ?? [])].filter((b) => !filtroActivo || b.colecciones.includes(filtroActivo)).sort((a, b) =>
     orden === 'titulo' ? a.title.localeCompare(b.title)
     : orden === 'autor' ? a.author.localeCompare(b.author)
     : 0, // "recientes": ya vienen ordenados así
@@ -158,7 +164,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
         )}
 
         {/* ================= ESTANTERÍA ================= */}
-        {estante.length > 0 && (
+        {(books?.length ?? 0) > 0 && (
           <section className="seccion" id="estanteria">
             <div className="contenedor">
               <div className="seccion-cab">
@@ -178,7 +184,20 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
                   </button>
                 </div>
               </div>
-              {editando && <p className="aviso-edicion">Tocá la × de un libro para quitarlo de tu estantería.</p>}
+              <FiltrosColecciones
+                colecciones={colecciones}
+                total={books?.length ?? 0}
+                elegida={filtroActivo}
+                onElegir={(c) => {
+                  setFiltro(c);
+                  guardarFiltro(c);
+                }}
+              />
+              {editando && (
+                <p className="aviso-edicion">
+                  Tocá un libro para elegir sus colecciones (por ejemplo «Facultad» o «Novelas»), o la × para quitarlo.
+                </p>
+              )}
               <div className="estante-wrap">
                 <div className="estante">
                   {estante.map((book) => (
@@ -186,7 +205,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
                       key={book.id}
                       book={book}
                       editando={editando}
-                      onOpen={() => onOpen(book.id)}
+                      onOpen={() => (editando ? setLibroColecciones(book) : onOpen(book.id))}
                       onDelete={() => {
                         if (confirm(`¿Quitar "${book.title}" de tu estantería?`)) onDelete(book.id);
                       }}
@@ -264,6 +283,19 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
             <button className="btn btn-primario" onClick={() => setAyudaIOS(false)}>Entendido</button>
           </div>
         </div>
+      )}
+
+      {libroColecciones && (
+        <VentanaColecciones
+          libro={libroColecciones}
+          colecciones={colecciones.map(([c]) => c)}
+          onCerrar={() => setLibroColecciones(null)}
+          onGuardar={async (elegidas) => {
+            await updateBook(libroColecciones.id, { colecciones: elegidas });
+            setLibroColecciones(null);
+            onBibliotecaCambiada();
+          }}
+        />
       )}
 
       {copiaAbierta && (
@@ -391,7 +423,7 @@ function Lomo({ book, editando, onOpen, onDelete }: { book: BookMeta; editando: 
 
   return (
     <div className="lomo-wrap" style={estilo}>
-      <button className="lomo" onClick={onOpen} title={`${book.title} — ${book.author}`} disabled={editando}>
+      <button className="lomo" onClick={onOpen} title={`${book.title} — ${book.author}`}>
         <span className="lt">{book.title}</span>
         <span className="la">{apellido(book.author)}</span>
       </button>

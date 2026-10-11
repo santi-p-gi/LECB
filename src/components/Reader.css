@@ -426,3 +426,70 @@
   /* en una sola página la hoja tiene las esquinas redondeadas de ambos lados */
   .hoja-giro.sola .frente, .hoja-giro.sola .dorso { border-radius: 4px; }
 }
+
+/* =========================================================
+   GUÍA RÁPIDA
+   ========================================================= */
+.lector {
+  .guia-fondo {
+    position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px;
+    background: rgba(20,15,10,.45); animation: aparecer .2s ease-out;
+  }
+  .guia {
+    width: min(400px, 100%); background: var(--hoja); color: var(--texto);
+    border-radius: 22px; padding: 24px 24px 18px; text-align: center;
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,.55);
+  }
+  .guia h2 { font: 500 22px/1.2 var(--f-display); margin: 10px 0 8px; }
+  .guia-texto { font-size: 15px; line-height: 1.5; color: var(--texto-2); min-height: 4.5em; }
+  .guia-dibujo { width: 100%; max-width: 220px; height: auto; }
+  .g-hoja { fill: color-mix(in srgb, var(--texto) 5%, var(--hoja)); stroke: var(--ui-borde); }
+  .g-lomo { stroke: var(--ui-borde); }
+  .g-zona { fill: color-mix(in srgb, var(--acento) 18%, transparent); }
+  .g-flecha { fill: none; stroke: var(--acento); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+  .g-toque { fill: color-mix(in srgb, var(--acento) 35%, transparent); stroke: var(--acento); stroke-width: 2; }
+  .g-renglon { stroke: var(--ui-borde); stroke-width: 3; stroke-linecap: round; }
+  .g-resaltado { fill: #f2c94c; opacity: .55; }
+  .guia-herramientas { list-style: none; margin: 4px 0 0; padding: 0; display: grid; gap: 10px; text-align: left; }
+  .guia-herramientas li { display: flex; align-items: center; gap: 12px; color: var(--texto); }
+  .guia-herramientas svg { width: 20px; height: 20px; flex: none; color: var(--acento); }
+  .guia-aa { width: 20px; flex: none; text-align: center; font: 500 14px var(--f-display); color: var(--acento); }
+  .guia-pie { display: flex; align-items: center; gap: 8px; margin-top: 20px; }
+  .guia-puntos { display: flex; gap: 6px; margin-right: auto; }
+  .guia-puntos i { width: 7px; height: 7px; border-radius: 50%; background: var(--ui-borde); }
+  .guia-puntos i.on { background: var(--acento); }
+  .ver-guia {
+    display: block; width: 100%; margin-top: 18px; padding: 10px; border-radius: 10px; cursor: pointer;
+    background: none; border: 1px dashed var(--ui-borde); color: var(--texto-2); font-size: 13px;
+  }
+  .ver-guia:hover { color: var(--acento); border-color: var(--acento); }
+}
+
+/* =========================================================
+   LEER EN VOZ ALTA
+   ========================================================= */
+.lector {
+  /* La barrita queda visible aunque las demás barras se escondan */
+  .barra-voz {
+    position: fixed; left: 50%; bottom: 58px; transform: translateX(-50%); z-index: 22;
+    display: flex; align-items: center; gap: 6px; padding: 6px 8px; border-radius: 999px;
+    background: var(--hoja); color: var(--texto); border: 1px solid var(--ui-borde);
+    box-shadow: 0 12px 30px -10px rgba(0,0,0,.4); animation: aparecer .2s ease-out;
+    max-width: calc(100vw - 24px);
+  }
+  &.inmersivo .barra-voz { bottom: 16px; }
+  .voz-boton {
+    width: 38px; height: 38px; flex: none; border-radius: 50%; display: grid; place-items: center;
+    border: 0; background: none; cursor: pointer; color: var(--texto);
+  }
+  .voz-boton svg { width: 16px; height: 16px; }
+  .voz-boton.principal { background: var(--acento); color: #fff; }
+  .voz-boton:hover:not(.principal) { background: color-mix(in srgb, var(--texto) 8%, transparent); }
+  .barra-voz select {
+    height: 34px; border-radius: 999px; border: 1px solid var(--ui-borde); background: transparent;
+    color: var(--texto); padding: 0 10px; font: 13px var(--f-ui); cursor: pointer; min-width: 0;
+  }
+  .voz-elegir { max-width: 190px; }
+  .voz-aviso { font-size: 12px; color: var(--texto-2); padding: 0 8px; }
+  @media (max-width: 600px) { .voz-elegir { max-width: 120px; } }
+}

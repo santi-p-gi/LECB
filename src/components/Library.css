@@ -319,3 +319,26 @@
 .fuente a:hover { border-bottom-color: var(--acento); }
 .fuentes-aviso { margin: 20px 0 0; font-size: 13.5px; color: var(--tinta-3); }
 @media (max-width: 800px) { .fuentes { grid-template-columns: 1fr; } .fuente { padding: 20px; } }
+
+/* =========================================================
+   COLECCIONES
+   ========================================================= */
+.filtros { display: flex; flex-wrap: wrap; gap: 8px; margin: -12px 0 8px; }
+.filtros button {
+  display: inline-flex; align-items: center; gap: 6px; height: 34px; padding: 0 14px; border-radius: 999px;
+  border: 1px solid var(--linea); background: none; cursor: pointer; font-size: 14px; color: var(--tinta-2);
+}
+.filtros button span { font-size: 12px; color: var(--tinta-3); font-variant-numeric: tabular-nums; }
+.filtros button:hover { border-color: var(--tinta-2); color: var(--tinta); }
+.filtros button[aria-selected="true"] { background: var(--tinta); border-color: var(--tinta); color: var(--papel); }
+.filtros button[aria-selected="true"] span { color: inherit; opacity: .7; }
+
+.lista-colecciones { list-style: none; margin: 0 0 14px; padding: 0; display: grid; gap: 2px; max-height: 40vh; overflow-y: auto; }
+.lista-colecciones label { display: flex; align-items: center; gap: 10px; padding: 9px 4px; cursor: pointer; border-bottom: 1px solid var(--linea); }
+.lista-colecciones input { width: 18px; height: 18px; accent-color: var(--acento); }
+.nueva-coleccion { display: flex; gap: 8px; margin-bottom: 16px; }
+.nueva-coleccion input {
+  flex: 1; min-width: 0; height: 38px; padding: 0 12px; border-radius: 10px;
+  border: 1px solid var(--linea); background: var(--papel); color: var(--tinta); font: 14.5px var(--f-ui);
+}
+.nueva-coleccion input:focus { outline: 2px solid var(--acento); outline-offset: 0; border-color: transparent; }

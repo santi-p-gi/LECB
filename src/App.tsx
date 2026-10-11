@@ -94,6 +94,7 @@ export default function App() {
           capitulos: null,
           bookmarks: [],
           highlights: [],
+          colecciones: [],
           ...extra,
         },
         archivo,

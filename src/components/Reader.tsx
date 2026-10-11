@@ -11,11 +11,14 @@ import {
   cargarPreferencias, guardarPreferencias, FUENTES, TAMANOS, TEMAS,
   type Fuente, type Preferencias, type Tema,
 } from '../preferencias';
-import { Cerrar, Cinta, Lista, Lupa, Volver } from './Iconos';
+import { Altavoz, Cerrar, Cinta, Lista, Lupa, Volver } from './Iconos';
+import { BarraVoz, useLecturaEnVoz } from './LecturaVoz';
+import { vozDisponible } from '../voz';
 import { animarFundido, animarHoja, medidas, mismasMedidas, Pagina, PanelAjustes, type Medidas } from './MarcoLibro';
 import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
 import { buscarEnLibro, normalizar, type Resultado } from '../busqueda';
 import './Reader.css';
+import GuiaLector, { guiaYaVista } from './Guia';
 import { contarEvento } from '../estadisticas';
 
 interface ReaderProps {
@@ -208,6 +211,8 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   const primeraVista = useRef(crearAviso());
   const subrayadosRef = useRef<Subrayado[]>([]); // copia para epub.js, que no ve el estado de React
   const clicEnSubrayado = useRef(0); // momento del último toque sobre un subrayado
+  // Leer en voz alta
+  const voz = useLecturaEnVoz({ renditionRef, temaRef: temaActual, vozNombre: prefs.voz, velocidad: prefs.velocidadVoz });
   const busquedaActual = useRef(0); // cada búsqueda nueva cancela la anterior
   const resaltadoBusqueda = useRef<{ cfi: string; reloj: number } | null>(null);
 
@@ -403,6 +408,12 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
 
   useEffect(() => guardarPreferencias(prefs), [prefs]);
 
+  // La primera vez que se abre un libro (en este navegador) se muestra la guía rápida.
+  const [guia, setGuia] = useState(false);
+  useEffect(() => {
+    if (mostrando && !guiaYaVista()) setGuia(true);
+  }, [mostrando]);
+
   /* ---------- navegación ---------- */
   function ir(dir: 1 | -1) {
     const r = renditionRef.current;
@@ -487,6 +498,11 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   }
 
   function alTeclear(e: KeyboardEvent) {
+    // Con la guía abierta, el teclado no mueve el libro (Escape la cierra).
+    if (guia) {
+      if (e.key === 'Escape') setGuia(false);
+      return;
+    }
     // Escape siempre cierra; las demás teclas se ignoran solo mientras se escribe o se mueve la barra.
     if (e.key === 'Escape') {
       setPanel(null);
@@ -525,6 +541,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
     const book = bookRef.current;
     if (!book) return;
     cfiActual.current = loc.start.cfi;
+    voz.alCambiarPagina(); // si está leyendo en voz alta, sigue con la página nueva
     setPos({
       inicio: loc.start.cfi,
       fin: loc.end.cfi,
@@ -884,6 +901,17 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
           <span>{tituloCap}</span>
         </div>
         <div className="grupo-btn">
+          {vozDisponible() && (
+            <button
+              className="btn-l"
+              onClick={() => (voz.estado === 'detenido' ? voz.iniciar() : voz.detener())}
+              aria-label={voz.estado === 'detenido' ? 'Leer en voz alta' : 'Dejar de leer en voz alta'}
+              aria-pressed={voz.estado !== 'detenido'}
+              disabled={!mostrando}
+            >
+              <Altavoz />
+            </button>
+          )}
           <button className="btn-l" onClick={() => setPanel(panel === 'buscar' ? null : 'buscar')} aria-label="Buscar en el libro">
             <Lupa />
           </button>
@@ -974,7 +1002,30 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
         <span className="info-b">{tiempoTexto}</span>
       </footer>
 
-      <PanelAjustes abierto={panel === 'ajustes'} prefs={prefs} onCambiar={(c) => setPrefs({ ...prefs, ...c })} />
+      {voz.estado !== 'detenido' && (
+        <BarraVoz
+          estado={voz.estado}
+          voces={voz.voces}
+          vozNombre={prefs.voz}
+          velocidad={prefs.velocidadVoz}
+          onPausar={voz.pausar}
+          onReanudar={voz.reanudar}
+          onDetener={voz.detener}
+          onVoz={(v) => setPrefs({ ...prefs, voz: v })}
+          onVelocidad={(v) => setPrefs({ ...prefs, velocidadVoz: v })}
+        />
+      )}
+
+      <PanelAjustes
+        abierto={panel === 'ajustes'}
+        prefs={prefs}
+        onCambiar={(c) => setPrefs({ ...prefs, ...c })}
+        onVerGuia={() => {
+          setPanel(null);
+          setGuia(true);
+        }}
+      />
+      {guia && <GuiaLector conSubrayados onCerrar={() => setGuia(false)} />}
 
       <aside className={`cajon ${(panel === 'indice' || panel === 'buscar') ? 'abierto' : ''}`} aria-label="Índice" aria-hidden={!(panel === 'indice' || panel === 'buscar')}>
         <div className="cajon-cab">
