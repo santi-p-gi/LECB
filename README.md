@@ -1,5 +1,7 @@
 # LECB
 
+**Web:** https://lecb.ar
+
 Web que se encarga de leer archivos EPUB y los transforma en libros para leer desde el celular o pc.
 
 Los libros que sube cada persona se guardan **solo en su navegador** (IndexedDB): nunca se envían a un servidor.

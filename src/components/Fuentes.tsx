@@ -50,6 +50,10 @@ export default function Fuentes() {
                 <Enlace href="https://archive.org/">Internet Archive</Enlace> — usá los libros de descarga libre; los
                 de «préstamo» vienen con DRM y no abren.
               </li>
+              <li>
+                <Enlace href="https://manybooks.net/">ManyBooks</Enlace> — más de 50.000 libros gratis, clásicos y de
+                autores que los regalan (la mayoría en inglés).
+              </li>
             </ul>
           </article>
 
@@ -61,7 +65,8 @@ export default function Fuentes() {
             </p>
             <ul>
               <li>
-                <Enlace href="https://lektu.com/">Lektu</Enlace> — tienda en español con muchos libros sin DRM.
+                <Enlace href="https://www.smashwords.com/">Smashwords</Enlace> — más de un millón de libros sin DRM de
+                autores independientes, muchos gratis (también en español).
               </li>
               <li>Muchos autores independientes y editoriales venden directo desde su web.</li>
               <li>
