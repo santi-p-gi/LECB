@@ -16,7 +16,8 @@ const MENSAJE_DRM = 'tiene DRM, la protección anticopia de la tienda donde se c
 const EXPLICACION_DRM =
   'El DRM es una protección que ponen algunas tiendas (Amazon, Google Play Libros, Apple Books y otras) para que ' +
   'el libro solo se pueda leer en su propia aplicación. LECB no puede abrir esos libros. Los EPUB sin DRM ' +
-  '(dominio público, muchos autores independientes y editoriales) funcionan perfecto.';
+  '(dominio público, muchos autores independientes y editoriales) funcionan perfecto. ' +
+  'En «¿De dónde saco libros EPUB?», más abajo en la página, te contamos dónde conseguirlos.';
 
 // Error con un mensaje pensado para mostrarle al usuario.
 class ErrorImportacion extends Error {}

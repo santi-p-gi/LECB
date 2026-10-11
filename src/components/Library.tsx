@@ -6,6 +6,7 @@ import { guardarTemaSitio } from '../preferencias';
 import { enMB, TAMANO_MAXIMO } from '../almacenamiento';
 import Portada from './Portada';
 import CopiaSeguridad from './CopiaSeguridad';
+import Fuentes from './Fuentes';
 import { Cinta, CompartirIOS, Instalar, LibroAbierto, Logo, Luna, Subir, Tipografia } from './Iconos';
 import { useInstalacion } from '../instalacion';
 import './Library.css';
@@ -111,6 +112,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
           <nav className="nav-links">
             {!vacia && <a href="#biblioteca">Biblioteca</a>}
             {!vacia && <a href="#estanteria">Estantería</a>}
+            <a href="#conseguir">Conseguir libros</a>
             <a href="#como">Cómo funciona</a>
           </nav>
           <div className="nav-acc">
@@ -216,6 +218,9 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
           </div>
         </section>
 
+        {/* ================= DÓNDE CONSEGUIR LIBROS ================= */}
+        <Fuentes />
+
         {/* ================= CÓMO FUNCIONA ================= */}
         <section className="seccion" id="como">
           <div className="contenedor">
@@ -302,6 +307,9 @@ function Hero({ onSubir, onDemo, onRestaurar, importing }: { onSubir: () => void
             </button>
           </div>
           <p className="hero-nota">Compatible con EPUB y PDF · En la compu y en el celu</p>
+          <p className="hero-nota">
+            <a className="enlace" href="#conseguir">¿Qué es un EPUB y dónde lo consigo?</a>
+          </p>
           <p className="hero-nota">
             ¿Venís de otro dispositivo?{' '}
             <button className="enlace" onClick={onRestaurar}>Restaurá tu copia de seguridad</button>

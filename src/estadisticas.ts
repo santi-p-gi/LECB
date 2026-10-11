@@ -22,7 +22,8 @@ export type Evento =
   | 'marcador'
   | 'importar-drm'
   | 'copia-exportada'
-  | 'copia-restaurada';
+  | 'copia-restaurada'
+  | 'ver-fuente';
 
 export function contarEvento(evento: Evento) {
   const gc = (window as Window & { goatcounter?: GoatCounter }).goatcounter;
