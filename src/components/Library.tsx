@@ -7,6 +7,7 @@ import { enMB, TAMANO_MAXIMO } from '../almacenamiento';
 import Portada from './Portada';
 import CopiaSeguridad from './CopiaSeguridad';
 import Fuentes from './Fuentes';
+import Contacto from './Contacto';
 import { cargarFiltro, contarColecciones, FiltrosColecciones, guardarFiltro, VentanaColecciones } from './Colecciones';
 import { Cinta, CompartirIOS, Instalar, LibroAbierto, Logo, Luna, Subir, Tipografia } from './Iconos';
 import { useInstalacion } from '../instalacion';
@@ -309,6 +310,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
 
       <footer className="pie">
         <div className="contenedor">
+          <Contacto />
           <span>LECB — tus libros y notas nunca salen de tu dispositivo</span>
           <span>Contamos visitas de forma anónima y sin cookies (GoatCounter)</span>
         </div>
