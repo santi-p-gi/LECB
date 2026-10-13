@@ -21,6 +21,9 @@ export interface Subrayado {
   etiqueta: string; // capítulo donde está
   pagina: number | null;
   creado: number;
+  // Solo en PDF: página (desde 0) y rectángulos subrayados, proporcionales a la página
+  // [x, y, ancho, alto] entre 0 y 1, para que sigan en su lugar con cualquier tamaño de pantalla.
+  pdf?: { pagina: number; rects: [number, number, number, number][] };
 }
 
 // Datos de cada libro que mostramos en la biblioteca.

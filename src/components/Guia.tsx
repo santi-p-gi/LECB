@@ -46,7 +46,7 @@ interface Paso {
   dibujo: ReactNode;
 }
 
-export default function GuiaLector({ conSubrayados, onCerrar }: { conSubrayados: boolean; onCerrar: () => void }) {
+export default function GuiaLector({ conSubrayados, conVoz = conSubrayados, onCerrar }: { conSubrayados: boolean; conVoz?: boolean; onCerrar: () => void }) {
   const pasos: Paso[] = [
     {
       titulo: 'Pasá de página',
@@ -83,7 +83,7 @@ export default function GuiaLector({ conSubrayados, onCerrar }: { conSubrayados:
           <li><Lista /> Índice{conSubrayados ? ', marcadores y subrayados' : ' y marcadores'}</li>
           <li><Cinta /> Marcar la página</li>
           <li><b className="guia-aa">Aa</b> Tema, letra, tamaño y cómo pasar página</li>
-          {conSubrayados && <li><Altavoz /> Leer en voz alta</li>}
+          {conVoz && <li><Altavoz /> Leer en voz alta</li>}
         </ul>
       ),
       dibujo: null,

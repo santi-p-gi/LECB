@@ -1,10 +1,12 @@
 // Lector de PDF: muestra las páginas del PDF tal cual (con fórmulas, tablas y gráficos),
 // dentro del mismo diseño de libro que los EPUB.
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react';
-import { getBook, getBookFile, updateBook, type BookMeta, type Marcador } from '../db';
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as EventoMouse } from 'react';
+import { getBook, getBookFile, updateBook, type BookMeta, type ColorSubrayado, type Marcador, type Subrayado } from '../db';
+import { COLORES_SUBRAYADO, descargarSubrayados } from '../subrayados';
+import { EditorNota, ListaSubrayados, MenuSubrayado, type PosicionMenu } from './Subrayados';
 import { cargarPreferencias, guardarPreferencias, type Tema } from '../preferencias';
 import {
-  abrirPdf, buscarEnPdf, cerrarPdf, fraseDePagina, indicePdf,
+  abrirPdf, buscarEnPdf, CapaTexto, cerrarPdf, fraseDePagina, indicePdf,
   type DocumentoPdf, type EntradaIndicePdf, type ResultadoPdf,
 } from '../pdf';
 import { normalizar } from '../busqueda';
@@ -15,6 +17,35 @@ import './Reader.css';
 import GuiaLector, { guiaYaVista } from './Guia';
 import { contarEvento } from '../estadisticas';
 
+
+/* ---------- de la selección a rectángulos guardables ---------- */
+
+// La selección llega como muchos pedacitos (uno por palabra o fragmento de texto). Los juntamos
+// en un rectángulo por renglón y los pasamos a proporciones de la página (entre 0 y 1).
+function unirRenglones(rects: DOMRect[], caja: DOMRect): [number, number, number, number][] {
+  const utiles = rects
+    .filter((r) => r.width > 1 && r.height > 1 && r.right > caja.left && r.left < caja.right && r.bottom > caja.top && r.top < caja.bottom)
+    .sort((a, b) => a.top - b.top || a.left - b.left);
+  const renglones: { top: number; bottom: number; left: number; right: number }[] = [];
+  for (const r of utiles) {
+    const ultimo = renglones[renglones.length - 1];
+    const centro = (r.top + r.bottom) / 2;
+    if (ultimo && centro > ultimo.top && centro < ultimo.bottom) {
+      ultimo.left = Math.min(ultimo.left, r.left);
+      ultimo.right = Math.max(ultimo.right, r.right);
+      ultimo.top = Math.min(ultimo.top, r.top);
+      ultimo.bottom = Math.max(ultimo.bottom, r.bottom);
+    } else renglones.push({ top: r.top, bottom: r.bottom, left: r.left, right: r.right });
+  }
+  const limitar = (v: number) => Math.min(1, Math.max(0, v));
+  return renglones
+    .map((g): [number, number, number, number] => {
+      const x = limitar((g.left - caja.left) / caja.width);
+      const y = limitar((g.top - caja.top) / caja.height);
+      return [x, y, limitar((g.right - caja.left) / caja.width) - x, limitar((g.bottom - caja.top) / caja.height) - y];
+    })
+    .filter(([, , w, h]) => w > 0.002 && h > 0.002);
+}
 
 /* ---------- una página del PDF dibujada en un canvas ---------- */
 
@@ -27,15 +58,20 @@ interface PaginaPdfProps {
   alto: number;
   tema: Tema;
   resaltes: number[][] | null; // rectángulos en unidades del PDF (búsqueda)
+  subrayados: Subrayado[]; // los de esta página
+  onTocarSubrayado: (id: string, rect: DOMRect) => void;
 }
 
-function PaginaPdf({ pdf, indice, left, top, ancho, alto, tema, resaltes }: PaginaPdfProps) {
+function PaginaPdf({ pdf, indice, left, top, ancho, alto, tema, resaltes, subrayados, onTocarSubrayado }: PaginaPdfProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const capaRef = useRef<HTMLDivElement>(null);
+  const lienzoRef = useRef<HTMLDivElement>(null);
   const [vista, setVista] = useState<{ escala: number; ancho: number; alto: number } | null>(null);
 
   useEffect(() => {
     let cancelado = false;
     let tarea: { cancel(): void } | null = null;
+    let capaTexto: { cancel(): void } | null = null;
     (async () => {
       const pagina = await pdf.getPage(indice + 1);
       if (cancelado) return;
@@ -57,21 +93,72 @@ function PaginaPdf({ pdf, indice, left, top, ancho, alto, tema, resaltes }: Pagi
       canvas.height = temporal.height;
       canvas.getContext('2d')?.drawImage(temporal, 0, 0);
       setVista({ escala, ancho: base.width * escala, alto: base.height * escala });
+
+      // Encima del dibujo va el texto real, invisible, en la misma posición: así se puede seleccionar.
+      const capa = capaRef.current;
+      if (!capa) return;
+      capa.replaceChildren();
+      capa.style.setProperty('--total-scale-factor', String(escala));
+      const nueva = new CapaTexto({
+        textContentSource: pagina.streamTextContent(),
+        container: capa,
+        viewport: pagina.getViewport({ scale: escala }),
+      });
+      capaTexto = nueva;
+      await nueva.render();
     })().catch((err) => {
-      if (!cancelado && (err as { name?: string })?.name !== 'RenderingCancelledException') console.error(err);
+      const nombre = (err as { name?: string })?.name;
+      if (!cancelado && nombre !== 'RenderingCancelledException' && nombre !== 'AbortException') console.error(err);
     });
     return () => {
       cancelado = true;
       tarea?.cancel();
+      capaTexto?.cancel();
     };
   }, [pdf, indice, ancho, alto]);
+
+  // Clic sobre un subrayado: abre su menú (y no pasa de página).
+  function alClic(e: EventoMouse) {
+    if (window.getSelection()?.toString()) return;
+    const caja = lienzoRef.current?.getBoundingClientRect();
+    if (!caja) return;
+    const x = (e.clientX - caja.left) / caja.width, y = (e.clientY - caja.top) / caja.height;
+    for (const s of subrayados) {
+      const tocado = s.pdf?.rects.find(([rx, ry, rw, rh]) => x >= rx && x <= rx + rw && y >= ry && y <= ry + rh);
+      if (tocado) {
+        e.stopPropagation();
+        const [rx, ry, rw, rh] = tocado;
+        onTocarSubrayado(s.id, new DOMRect(caja.left + rx * caja.width, caja.top + ry * caja.height, rw * caja.width, rh * caja.height));
+        return;
+      }
+    }
+  }
 
   // Los rectángulos del PDF tienen el origen abajo a la izquierda; la pantalla, arriba a la izquierda.
   const altoPdf = vista ? vista.alto / vista.escala : 0;
   return (
-    <div className={`pagina-pdf pdf-${tema}`} style={{ left, top, width: ancho, height: alto }}>
-      <div className="lienzo-pdf" style={vista ? { width: vista.ancho, height: vista.alto } : undefined}>
+    <div className={`pagina-pdf pdf-${tema}`} data-pagina={indice} style={{ left, top, width: ancho, height: alto }}>
+      <div
+        className="lienzo-pdf"
+        ref={lienzoRef}
+        onClick={alClic}
+        style={vista ? { width: vista.ancho, height: vista.alto } : undefined}
+      >
         <canvas ref={canvasRef} style={vista ? { width: vista.ancho, height: vista.alto } : undefined} />
+        {/* Subrayados: debajo de la capa de texto, para que se pueda seguir seleccionando encima */}
+        {subrayados.flatMap((s) =>
+          (s.pdf?.rects ?? []).map(([x, y, w, h], i) => (
+            <span
+              key={`${s.id}-${i}`}
+              className="subrayado-pdf"
+              style={{
+                left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%`,
+                '--color': COLORES_SUBRAYADO[s.color].color,
+              } as CSSProperties}
+            />
+          )),
+        )}
+        <div className="textLayer" ref={capaRef} />
         {vista &&
           resaltes?.map(([x1, y1, x2, y2], i) => (
             <span
@@ -102,7 +189,15 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   const [indice, setIndice] = useState<EntradaIndicePdf[]>([]);
   const [marcadores, setMarcadores] = useState<Marcador[]>([]);
   const [panel, setPanel] = useState<'ajustes' | 'indice' | 'buscar' | null>(null);
-  const [pestana, setPestana] = useState<'indice' | 'marcadores'>('indice');
+  const [pestana, setPestana] = useState<'indice' | 'marcadores' | 'subrayados'>('indice');
+  const [subrayados, setSubrayados] = useState<Subrayado[]>([]);
+  // Menú flotante: sobre texto recién seleccionado (nuevo) o sobre un subrayado existente (id).
+  const [menu, setMenu] = useState<{
+    posicion: PosicionMenu;
+    nuevo?: { pagina: number; rects: [number, number, number, number][]; texto: string };
+    id?: string;
+  } | null>(null);
+  const [notaAbierta, setNotaAbierta] = useState<string | null>(null);
   const [inmersivo, setInmersivo] = useState(false);
   const [arrastre, setArrastre] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -142,6 +237,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
       setProporcion(base.width / base.height);
       setMeta(m);
       setMarcadores(m.bookmarks);
+      setSubrayados(m.highlights);
       setActual(Math.min(Math.max(0, Number(m.location) || 0), doc.numPages - 1));
       setPdf(doc);
       updateBook(bookId, { lastOpenedAt: Date.now() });
@@ -245,6 +341,12 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
       setPanel(null);
       return;
     }
+    // Si se está seleccionando texto o hay un menú abierto, el clic no pasa de página.
+    if (window.getSelection()?.toString()) return;
+    if (menu) {
+      cerrarMenu();
+      return;
+    }
     const r = libroRef.current?.getBoundingClientRect();
     if (!r) return;
     const rel = (x - r.left) / r.width;
@@ -275,6 +377,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
     }
     if (e.key === 'Escape') {
       setPanel(null);
+      cerrarMenu();
       return;
     }
     if (e.key.toLowerCase() === 'f' && (e.ctrlKey || e.metaKey)) {
@@ -319,6 +422,98 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
     setMarcadores(nuevos);
     updateBook(bookId, { bookmarks: nuevos });
   }
+
+  /* ---------- subrayados y notas ---------- */
+  function guardarSubrayados(nuevos: Subrayado[]) {
+    setSubrayados(nuevos);
+    updateBook(bookId, { highlights: nuevos });
+  }
+
+  function cerrarMenu() {
+    setMenu(null);
+    window.getSelection()?.removeAllRanges();
+  }
+
+  // Cuando seleccionan texto dentro de una página, aparece el menú (colores, nota, copiar).
+  // Se usa "selectionchange" porque funciona igual con mouse y con el dedo (toque largo).
+  useEffect(() => {
+    let reloj: number | undefined;
+    const alCambiarSeleccion = () => {
+      clearTimeout(reloj);
+      reloj = window.setTimeout(() => {
+        const sel = window.getSelection();
+        if (!sel || sel.isCollapsed || sel.rangeCount === 0) {
+          setMenu((m) => (m?.nuevo ? null : m));
+          return;
+        }
+        const texto = sel.toString().replace(/\s+/g, ' ').trim();
+        const rango = sel.getRangeAt(0);
+        const inicioEl = rango.startContainer.nodeType === Node.ELEMENT_NODE
+          ? (rango.startContainer as Element)
+          : rango.startContainer.parentElement;
+        const pagina = inicioEl?.closest<HTMLElement>('.pagina-pdf');
+        const lienzo = pagina?.querySelector('.lienzo-pdf');
+        if (!texto || !pagina || !lienzo || !contenidoRef.current?.contains(pagina)) return;
+        const caja = lienzo.getBoundingClientRect();
+        const rects = unirRenglones([...rango.getClientRects()], caja);
+        if (!rects.length) return;
+        const marco = rango.getBoundingClientRect();
+        setMenu({
+          posicion: { x: marco.left + marco.width / 2, arriba: marco.top, abajo: marco.bottom },
+          nuevo: { pagina: Number(pagina.dataset.pagina), rects, texto },
+        });
+      }, 250);
+    };
+    document.addEventListener('selectionchange', alCambiarSeleccion);
+    return () => {
+      clearTimeout(reloj);
+      document.removeEventListener('selectionchange', alCambiarSeleccion);
+    };
+  }, []);
+
+  function crearSubrayado(color: ColorSubrayado, conNota = false) {
+    if (!menu?.nuevo) return;
+    const { pagina, rects, texto } = menu.nuevo;
+    const id = crypto.randomUUID();
+    const nuevo: Subrayado = {
+      id,
+      cfi: `pdf-${pagina}-${id}`, // en PDF no hay CFI: un identificador único alcanza
+      texto,
+      color,
+      nota: null,
+      etiqueta: capituloDe(pagina)?.label ?? '',
+      pagina: pagina + 1,
+      creado: Date.now(),
+      pdf: { pagina, rects },
+    };
+    // Ordenados por página y, dentro de la página, de arriba hacia abajo.
+    const orden = (s: Subrayado) => (s.pdf?.pagina ?? 0) * 10 + (s.pdf?.rects[0]?.[1] ?? 0);
+    guardarSubrayados([...subrayados, nuevo].sort((a, b) => orden(a) - orden(b)));
+    contarEvento('subrayado');
+    cerrarMenu();
+    if (conNota) setNotaAbierta(id);
+  }
+
+  function cambiarColor(id: string, color: ColorSubrayado) {
+    guardarSubrayados(subrayados.map((s) => (s.id === id ? { ...s, color } : s)));
+    setMenu(null);
+  }
+
+  function borrarSubrayado(id: string) {
+    const s = subrayados.find((x) => x.id === id);
+    if (s?.nota && !confirm('Este subrayado tiene una nota. ¿Borrar los dos?')) return;
+    guardarSubrayados(subrayados.filter((x) => x.id !== id));
+    setMenu(null);
+  }
+
+  function guardarNota(id: string, nota: string) {
+    if (nota.trim() && !subrayados.find((s) => s.id === id)?.nota) contarEvento('nota');
+    guardarSubrayados(subrayados.map((s) => (s.id === id ? { ...s, nota: nota.trim() || null } : s)));
+    setNotaAbierta(null);
+  }
+
+  const subrayadoDelMenu = menu?.id ? subrayados.find((s) => s.id === menu.id) ?? null : null;
+  const subrayadoConNota = notaAbierta ? subrayados.find((s) => s.id === notaAbierta) ?? null : null;
 
   /* ---------- búsqueda ---------- */
   useEffect(() => {
@@ -442,6 +637,10 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
                     alto={L.ch}
                     tema={prefs.tema}
                     resaltes={resalte?.pagina === p ? resalte.rects : null}
+                    subrayados={subrayados.filter((s) => s.pdf?.pagina === p)}
+                    onTocarSubrayado={(id, r) =>
+                      setMenu({ posicion: { x: r.left + r.width / 2, arriba: r.top, abajo: r.bottom }, id })
+                    }
                   />
                 ))}
             </div>
@@ -484,13 +683,45 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
           setGuia(true);
         }}
       />
-      {guia && <GuiaLector conSubrayados={false} onCerrar={() => setGuia(false)} />}
+      {guia && <GuiaLector conSubrayados conVoz={false} onCerrar={() => setGuia(false)} />}
+
+      {menu && (
+        <MenuSubrayado
+          posicion={menu.posicion}
+          colorActual={subrayadoDelMenu?.color ?? null}
+          tieneNota={!!subrayadoDelMenu?.nota}
+          onColor={(c) => (subrayadoDelMenu ? cambiarColor(subrayadoDelMenu.id, c) : crearSubrayado(c))}
+          onNota={() => {
+            if (subrayadoDelMenu) {
+              setNotaAbierta(subrayadoDelMenu.id);
+              setMenu(null);
+            } else crearSubrayado('amarillo', true);
+          }}
+          onCopiar={
+            menu.nuevo
+              ? () => {
+                  navigator.clipboard?.writeText(menu.nuevo!.texto).catch(() => {});
+                  cerrarMenu();
+                }
+              : undefined
+          }
+          onBorrar={subrayadoDelMenu ? () => borrarSubrayado(subrayadoDelMenu.id) : undefined}
+        />
+      )}
+      {subrayadoConNota && (
+        <EditorNota
+          texto={subrayadoConNota.texto}
+          notaInicial={subrayadoConNota.nota ?? ''}
+          onGuardar={(nota) => guardarNota(subrayadoConNota.id, nota)}
+          onCancelar={() => setNotaAbierta(null)}
+        />
+      )}
 
       <aside className={`cajon ${cajonAbierto ? 'abierto' : ''}`} aria-label="Índice" aria-hidden={!cajonAbierto}>
         <div className="cajon-cab">
           <div>
             <p className="cajon-sup">{meta?.title}</p>
-            <h2>{panel === 'buscar' ? 'Buscar' : pestana === 'indice' ? 'Índice' : 'Marcadores'}</h2>
+            <h2>{panel === 'buscar' ? 'Buscar' : { indice: 'Índice', marcadores: 'Marcadores', subrayados: 'Subrayados' }[pestana]}</h2>
           </div>
           <button className="btn-l" onClick={() => setPanel(null)} aria-label="Cerrar">
             <Cerrar />
@@ -508,10 +739,11 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
         ) : (
           <>
             <div className="pestanas" role="tablist">
-              {(['indice', 'marcadores'] as const).map((p) => (
+              {(['indice', 'marcadores', 'subrayados'] as const).map((p) => (
                 <button key={p} role="tab" aria-selected={pestana === p} onClick={() => setPestana(p)}>
-                  {p === 'indice' ? 'Índice' : 'Marcadores'}
+                  {{ indice: 'Índice', marcadores: 'Marcadores', subrayados: 'Subrayados' }[p]}
                   {p === 'marcadores' && marcadores.length > 0 && <span className="cuenta">{marcadores.length}</span>}
+                  {p === 'subrayados' && subrayados.length > 0 && <span className="cuenta">{subrayados.length}</span>}
                 </button>
               ))}
             </div>
@@ -552,6 +784,15 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
                   ))}
                 </ul>
               ))}
+            {pestana === 'subrayados' && (
+              <ListaSubrayados
+                subrayados={subrayados}
+                onIr={(sub) => sub.pdf && irAPagina(sub.pdf.pagina)}
+                onNota={(sub) => setNotaAbierta(sub.id)}
+                onBorrar={(sub) => borrarSubrayado(sub.id)}
+                onExportar={() => meta && descargarSubrayados(meta, subrayados)}
+              />
+            )}
           </>
         )}
       </aside>

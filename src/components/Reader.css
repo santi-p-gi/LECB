@@ -493,3 +493,50 @@
   .voz-aviso { font-size: 12px; color: var(--texto-2); padding: 0 8px; }
   @media (max-width: 600px) { .voz-elegir { max-width: 120px; } }
 }
+
+/* =========================================================
+   PDF: TEXTO SELECCIONABLE Y SUBRAYADOS
+   ========================================================= */
+.lector {
+  /* Capa de texto de pdf.js: el texto real, transparente, encima del dibujo de la página.
+     (Reglas adaptadas de pdfjs-dist/web/pdf_viewer.css, solo las necesarias.) */
+  .pagina-pdf .textLayer {
+    position: absolute; inset: 0; overflow: clip; z-index: 2;
+    line-height: 1; text-align: initial; letter-spacing: normal; word-spacing: normal;
+    text-size-adjust: none; -webkit-text-size-adjust: none; forced-color-adjust: none;
+    transform-origin: 0 0; caret-color: CanvasText;
+    --scale-round-x: 1px; --scale-round-y: 1px;
+    --min-font-size: 1;
+    --text-scale-factor: calc(var(--total-scale-factor) * var(--min-font-size));
+    --min-font-size-inv: calc(1 / var(--min-font-size));
+    pointer-events: auto; /* el contenedor del PDF ignora los clics; esta capa no */
+  }
+  .pagina-pdf .textLayer :is(span, br) {
+    color: transparent; position: absolute; white-space: pre; cursor: text;
+    transform-origin: 0% 0%; user-select: text; -webkit-user-select: text;
+  }
+  .pagina-pdf .textLayer > :not(.markedContent),
+  .pagina-pdf .textLayer .markedContent span:not(.markedContent) {
+    z-index: 1;
+    --font-height: 0;
+    font-size: calc(var(--text-scale-factor) * var(--font-height));
+    --scale-x: 1;
+    --rotate: 0deg;
+    transform: rotate(var(--rotate)) scaleX(var(--scale-x)) scale(var(--min-font-size-inv));
+  }
+  .pagina-pdf .textLayer .markedContent { display: contents; }
+  .pagina-pdf .textLayer ::selection { background: color-mix(in srgb, var(--acento) 30%, transparent); color: transparent; }
+  .pagina-pdf .textLayer br::selection { background: transparent; }
+  .pagina-pdf .textLayer .endOfContent {
+    display: block; position: absolute; inset: 100% 0 0; z-index: 0; cursor: default; user-select: none;
+  }
+  .pagina-pdf .textLayer.selecting .endOfContent { top: 0; }
+
+  /* Subrayados guardados (debajo de la capa de texto) */
+  .subrayado-pdf {
+    position: absolute; z-index: 1; pointer-events: none; border-radius: 2px;
+    background: var(--color); opacity: .42; mix-blend-mode: multiply;
+  }
+  &[data-tema="noche"] .subrayado-pdf { opacity: .3; mix-blend-mode: normal; }
+  .lienzo-pdf { pointer-events: auto; }
+}

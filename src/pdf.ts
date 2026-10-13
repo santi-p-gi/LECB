@@ -9,6 +9,9 @@ pdfjs.GlobalWorkerOptions.workerSrc = urlTrabajador;
 
 export type DocumentoPdf = pdfjs.PDFDocumentProxy;
 
+// Capa de texto invisible encima de cada página, para poder seleccionar y subrayar.
+export const CapaTexto = pdfjs.TextLayer;
+
 // Ojo: pdf.js se queda con el ArrayBuffer (lo "transfiere" al worker); no se puede volver a usar.
 export function abrirPdf(data: ArrayBuffer): Promise<DocumentoPdf> {
   return pdfjs.getDocument({ data }).promise;
