@@ -2,7 +2,7 @@
   "id": "/",
   "name": "LECB — Lector de libros",
   "short_name": "LECB",
-  "description": "Leé tus libros EPUB como en papel, en cualquier pantalla. Tus libros quedan solo en tu dispositivo.",
+  "description": "Leé tus libros EPUB y PDF como en papel, en cualquier pantalla. Tus libros quedan solo en tu dispositivo.",
   "lang": "es",
   "start_url": "/",
   "scope": "/",
@@ -10,8 +10,61 @@
   "background_color": "#f5efe3",
   "theme_color": "#9b3b2a",
   "icons": [
-    { "src": "/iconos/icono-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "/iconos/icono-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "/iconos/icono-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
-  ]
+    {
+      "src": "/iconos/icono-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/iconos/icono-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/iconos/icono-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ],
+  "share_target": {
+    "action": "/compartir",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url",
+      "files": [
+        {
+          "name": "libros",
+          "accept": [
+            "application/epub+zip",
+            "application/pdf",
+            ".epub",
+            ".pdf",
+            "application/octet-stream"
+          ]
+        }
+      ]
+    }
+  },
+  "file_handlers": [
+    {
+      "action": "/",
+      "accept": {
+        "application/epub+zip": [
+          ".epub"
+        ],
+        "application/pdf": [
+          ".pdf"
+        ]
+      }
+    }
+  ],
+  "launch_handler": {
+    "client_mode": "focus-existing"
+  }
 }

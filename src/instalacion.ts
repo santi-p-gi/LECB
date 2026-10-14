@@ -34,6 +34,8 @@ export const estaInstalada = () =>
 export const esIOS = () =>
   /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 
+export const esAndroid = () => /android/i.test(navigator.userAgent);
+
 // Se llama una vez al arrancar la web.
 export function iniciarApp() {
   // El service worker solo en la versión publicada: mientras desarrollamos guardaría versiones viejas.

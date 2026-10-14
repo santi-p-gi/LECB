@@ -55,8 +55,13 @@ self.addEventListener('activate', (evento) => {
 /* ---------- 3. Funcionamiento: atender cada pedido ---------- */
 self.addEventListener('fetch', (evento) => {
   const pedido = evento.request;
-  if (pedido.method !== 'GET') return; // solo guardamos lecturas
   const url = new URL(pedido.url);
+  // Un libro compartido desde otra app (Compartir → LECB).
+  if (pedido.method === 'POST' && url.origin === self.location.origin && url.pathname === '/compartir') {
+    evento.respondWith(recibirCompartidos(pedido));
+    return;
+  }
+  if (pedido.method !== 'GET') return; // solo guardamos lecturas
 
   // La página en sí: primero internet (para tener siempre la última versión).
   if (pedido.mode === 'navigate') {
@@ -78,6 +83,30 @@ self.addEventListener('fetch', (evento) => {
   }
   // Todo lo demás pasa directo, como si no hubiera service worker.
 });
+
+// Cuando alguien comparte un EPUB o PDF con LECB (desde WhatsApp, el mail, las descargas…),
+// Android "envía" el archivo a /compartir. No va a ningún servidor: lo atiende este service
+// worker, que lo deja en una caché del dispositivo y abre la app, que lo importa (ver App.tsx).
+async function recibirCompartidos(pedido) {
+  try {
+    const datos = await pedido.formData();
+    const archivos = datos.getAll('libros').filter((a) => typeof a !== 'string');
+    const cache = await caches.open('lecb-compartidos');
+    await Promise.all(
+      archivos.map((a, i) =>
+        cache.put(
+          `/compartidos/${Date.now()}-${i}`,
+          new Response(a, {
+            headers: { 'content-type': a.type || 'application/octet-stream', 'x-nombre': encodeURIComponent(a.name || 'libro') },
+          }),
+        ),
+      ),
+    );
+  } catch {
+    // si algo falla, la app abre igual (sin libro nuevo)
+  }
+  return Response.redirect('/?compartido=1', 303);
+}
 
 // Guarda la hoja de estilos de Google Fonts y los archivos de letra del alfabeto latino
 // (español incluido). Los demás alfabetos (cirílico, griego…) no se descargan.

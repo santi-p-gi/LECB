@@ -1,5 +1,5 @@
 // Componente principal: decide si mostramos la biblioteca o el lector.
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { addBook, deleteBook, getAllBooks, type BookMeta } from './db';
 import { readEpubInfo, tieneDrm } from './epub';
 import { enMB, esFaltaDeEspacio, espacioLibre, pedirPersistencia, TAMANO_AVISO, TAMANO_MAXIMO } from './almacenamiento';
@@ -18,6 +18,22 @@ const EXPLICACION_DRM =
   'el libro solo se pueda leer en su propia aplicación. LECB no puede abrir esos libros. Los EPUB sin DRM ' +
   '(dominio público, muchos autores independientes y editoriales) funcionan perfecto. ' +
   'En «¿De dónde saco libros EPUB?», más abajo en la página, te contamos dónde conseguirlos.';
+
+// Saca de la caché los archivos que dejó el service worker al compartir con LECB (y los borra).
+async function recibirCompartidos(): Promise<File[]> {
+  if (!('caches' in window)) return [];
+  const cache = await caches.open('lecb-compartidos');
+  const archivos: File[] = [];
+  for (const pedido of await cache.keys()) {
+    const respuesta = await cache.match(pedido);
+    if (respuesta) {
+      const nombre = decodeURIComponent(respuesta.headers.get('x-nombre') ?? 'libro');
+      archivos.push(new File([await respuesta.blob()], nombre, { type: respuesta.headers.get('content-type') ?? '' }));
+    }
+    await cache.delete(pedido);
+  }
+  return archivos;
+}
 
 // Error con un mensaje pensado para mostrarle al usuario.
 class ErrorImportacion extends Error {}
@@ -155,6 +171,25 @@ export default function App() {
       abrirMarcado(ultimo);
     }
   }
+
+  // Libros que llegan de afuera, con la app instalada:
+  // - "Compartir → LECB" (Android): el service worker los deja en una caché y abre "/?compartido=1".
+  // - "Abrir con → LECB" (compu): llegan por launchQueue.
+  const importarDeAfuera = useRef(handleImport);
+  importarDeAfuera.current = handleImport;
+  useEffect(() => {
+    if (new URLSearchParams(location.search).has('compartido')) {
+      history.replaceState(history.state, '', '/' + location.hash);
+      recibirCompartidos().then((archivos) => {
+        if (archivos.length) importarDeAfuera.current(archivos);
+        else alert('LECB recibió un enlace, no un archivo. Descargá el libro (EPUB o PDF) y compartí el archivo descargado.');
+      });
+    }
+    const cola = (window as { launchQueue?: { setConsumer(f: (p: { files?: { getFile(): Promise<File> }[] }) => void): void } }).launchQueue;
+    cola?.setConsumer(async ({ files }) => {
+      if (files?.length) importarDeAfuera.current(await Promise.all(files.map((f) => f.getFile())));
+    });
+  }, []);
 
   // Abre el libro de muestra (dominio público). Si ya está en la biblioteca, lo reutiliza.
   async function handleDemo() {

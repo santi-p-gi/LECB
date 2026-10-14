@@ -10,7 +10,7 @@ import Fuentes from './Fuentes';
 import Contacto from './Contacto';
 import { cargarFiltro, contarColecciones, FiltrosColecciones, guardarFiltro, VentanaColecciones } from './Colecciones';
 import { Cinta, CompartirIOS, Instalar, LibroAbierto, Logo, Luna, Subir, Tipografia } from './Iconos';
-import { useInstalacion } from '../instalacion';
+import { esAndroid, useInstalacion } from '../instalacion';
 import './Library.css';
 
 // "Props": los datos y funciones que App le pasa a este componente.
@@ -234,6 +234,12 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
               <span className="btn btn-primario">Elegir archivo</span>
               <small>EPUB y PDF · hasta {enMB(TAMANO_MAXIMO)} · tus libros quedan solo en este navegador</small>
               <small className="nota-drm">Los libros comprados con protección anticopia (DRM) no se pueden abrir.</small>
+              {esAndroid() && (
+                <small className="nota-drm">
+                  Con LECB instalada, también podés tocar <b>Compartir → LECB</b> en un libro de WhatsApp, el mail o
+                  tus descargas.
+                </small>
+              )}
             </div>
           </div>
         </section>
