@@ -539,9 +539,11 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
     const r = libroRef.current?.getBoundingClientRect();
     if (!r) return;
     const rel = (x - r.left) / r.width;
-    if (L.doble) ir(rel < 0.5 ? -1 : 1);
-    else if (rel < 0.3) ir(-1);
-    else if (rel > 0.7) ir(1);
+    // Costados: pasar página. Franja del centro: mostrar u ocultar las barras.
+    // (A doble página los costados son más anchos: la franja central queda sobre el lomo.)
+    const borde = L.doble ? 0.4 : 0.3;
+    if (rel < borde) ir(-1);
+    else if (rel > 1 - borde) ir(1);
     else if (dobleToque && !modoTexto) zoomEn(2.5, x, y);
     else if (inmersivo) despertar();
     else setInmersivo(true);
