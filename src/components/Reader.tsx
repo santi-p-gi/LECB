@@ -18,7 +18,7 @@ import { BarraVoz, useLecturaEnVoz } from './LecturaVoz';
 import { vozDisponible } from '../voz';
 import {
   animarFundido, animarHoja, medidas, mismasMedidas, modoCompleto, Pagina, PanelAjustes, pedirPantallaCompleta,
-  useSalidaPantallaCompleta, type Medidas,
+  usePantallaEncendida, useSalidaPantallaCompleta, type Medidas,
 } from './MarcoLibro';
 import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
 import { buscarEnLibro, normalizar, type Resultado } from '../busqueda';
@@ -428,6 +428,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
 
   useEffect(() => guardarPreferencias(prefs), [prefs]);
   useSalidaPantallaCompleta(() => setPrefs((p) => ({ ...p, completa: false })));
+  usePantallaEncendida(prefs.pantallaEncendida, pos?.inicio);
 
   // La primera vez que se abre un libro (en este navegador) se muestra la guía rápida.
   const [guia, setGuia] = useState(false);

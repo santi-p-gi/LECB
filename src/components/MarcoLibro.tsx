@@ -122,6 +122,78 @@ export function useSalidaPantallaCompleta(alSalir: () => void) {
   }, []);
 }
 
+/* ---------- pantalla encendida mientras se lee ---------- */
+// Le pide al dispositivo que no apague ni oscurezca la pantalla (Wake Lock). Si pasan 10 minutos
+// sin pasar de página ni tocar nada (por ejemplo, el lector se durmió), lo suelta y la pantalla
+// se apaga como siempre. "senal" cambia en cada página: cuenta como actividad.
+const SIN_ACTIVIDAD = 10 * 60 * 1000;
+
+type BloqueoPantalla = { release(): Promise<void>; released?: boolean };
+const wakeLock = () =>
+  (navigator as Navigator & { wakeLock?: { request(t: 'screen'): Promise<BloqueoPantalla> } }).wakeLock;
+
+export function usePantallaEncendida(activa: boolean, senal: unknown) {
+  const bloqueo = useRef<BloqueoPantalla | null>(null);
+  const reloj = useRef<number | undefined>(undefined);
+  const activaRef = useRef(activa);
+  activaRef.current = activa;
+
+  // "quiero": si en este momento corresponde tenerlo. El pedido tarda un instante: si mientras
+  // tanto se soltó (se cerró el libro, pasó el tiempo), se suelta apenas llega.
+  const quiero = useRef(false);
+  const pidiendo = useRef(false);
+  const soltar = useRef(() => {
+    quiero.current = false;
+    bloqueo.current?.release().catch(() => {});
+    bloqueo.current = null;
+  });
+  const actividad = useRef(() => {});
+  actividad.current = async () => {
+    clearTimeout(reloj.current);
+    if (!activaRef.current || document.visibilityState !== 'visible') return;
+    quiero.current = true;
+    reloj.current = window.setTimeout(soltar.current, SIN_ACTIVIDAD);
+    if ((bloqueo.current && !bloqueo.current.released) || pidiendo.current) return;
+    pidiendo.current = true;
+    try {
+      const nuevo = (await wakeLock()?.request('screen')) ?? null;
+      if (quiero.current) bloqueo.current = nuevo;
+      else nuevo?.release().catch(() => {});
+    } catch {
+      // no disponible (navegador viejo, modo ahorro de batería): la pantalla se apaga como siempre
+    } finally {
+      pidiendo.current = false;
+    }
+  };
+
+  // Cada página nueva y cada toque o tecla cuentan como "sigue leyendo".
+  useEffect(() => {
+    actividad.current();
+  }, [senal, activa]);
+  useEffect(() => {
+    const f = () => actividad.current();
+    // Al volver a la pestaña o a la app, el navegador ya soltó el bloqueo: se pide de nuevo.
+    const alVolver = () => document.visibilityState === 'visible' && f();
+    window.addEventListener('pointerdown', f);
+    window.addEventListener('keydown', f);
+    document.addEventListener('visibilitychange', alVolver);
+    return () => {
+      window.removeEventListener('pointerdown', f);
+      window.removeEventListener('keydown', f);
+      document.removeEventListener('visibilitychange', alVolver);
+      clearTimeout(reloj.current);
+      soltar.current();
+    };
+  }, []);
+  // Si se apaga la opción, se suelta enseguida.
+  useEffect(() => {
+    if (!activa) {
+      clearTimeout(reloj.current);
+      soltar.current();
+    }
+  }, [activa]);
+}
+
 export function Pagina({ lado, cabecera, folio }: { lado: 'izq' | 'der' | 'unica'; cabecera: string; folio: number | null }) {
   return (
     <div className={`pagina ${lado}`}>
@@ -274,6 +346,15 @@ export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false, onVe
         </label>
         <p className="nota-op">Sin marco ni barras: el libro ocupa toda la pantalla. Tocá el centro para ver los botones.</p>
       </div>
+      {'wakeLock' in navigator && (
+        <div className="grupo">
+          <label className="interruptor">
+            Pantalla siempre encendida
+            <input type="checkbox" checked={prefs.pantallaEncendida} onChange={(e) => onCambiar({ pantallaEncendida: e.target.checked })} />
+          </label>
+          <p className="nota-op">Mientras leés, la pantalla no se apaga ni se oscurece. Si pasan 10 minutos sin pasar de página, se apaga como siempre.</p>
+        </div>
+      )}
       {onVerGuia && (
         <button className="ver-guia" onClick={onVerGuia}>
           Ver la guía de nuevo

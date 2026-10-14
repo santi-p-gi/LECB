@@ -17,6 +17,7 @@ export interface Preferencias {
   voz: string | null; // voz elegida para leer en voz alta (null = la que elija el dispositivo)
   velocidadVoz: number;
   completa: boolean; // pantalla completa: sin marco ni barras fijas
+  pantallaEncendida: boolean; // que el celular no apague la pantalla mientras se lee
 }
 
 export const TAMANOS = [15, 16, 17, 18, 20, 22, 24];
@@ -62,6 +63,7 @@ export function cargarPreferencias(): Preferencias {
     voz: null,
     velocidadVoz: 1,
     completa: false,
+    pantallaEncendida: true,
   };
   try {
     return { ...base, ...JSON.parse(localStorage.getItem(CLAVE) || '{}') };

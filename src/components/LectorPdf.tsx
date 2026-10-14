@@ -14,7 +14,7 @@ import {
 import { normalizar } from '../busqueda';
 import {
   animarFundido, animarHoja, medidas, medidasPdf, mismasMedidas, type Medidas, modoCompleto, Pagina, PanelAjustes, pedirPantallaCompleta,
-  useSalidaPantallaCompleta,
+  usePantallaEncendida, useSalidaPantallaCompleta,
 } from './MarcoLibro';
 import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
 import { Cerrar, Cinta, Lista, Lupa, Volver } from './Iconos';
@@ -441,6 +441,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
 
   useEffect(() => guardarPreferencias(prefs), [prefs]);
   useSalidaPantallaCompleta(() => setPrefs((p) => ({ ...p, completa: false })));
+  usePantallaEncendida(prefs.pantallaEncendida, `${actual}-${parte}-${zoom?.z ?? 1}`);
 
   // La primera vez que se abre un libro (en este navegador) se muestra la guía rápida.
   const [guia, setGuia] = useState(false);
