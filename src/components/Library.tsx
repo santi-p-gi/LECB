@@ -1,5 +1,5 @@
 // Pantalla de inicio y biblioteca (maqueta "inicio.html").
-import { useRef, useState, type CSSProperties, type DragEvent } from 'react';
+import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { updateBook, type BookMeta } from '../db';
 import { colorTexto, hashTexto } from '../colores';
 import { guardarTemaSitio } from '../preferencias';
@@ -8,6 +8,7 @@ import Portada from './Portada';
 import CopiaSeguridad from './CopiaSeguridad';
 import Fuentes from './Fuentes';
 import Contacto from './Contacto';
+import { ControlAvisos, InvitacionAvisos } from './Avisos';
 import { cargarFiltro, contarColecciones, FiltrosColecciones, guardarFiltro, VentanaColecciones } from './Colecciones';
 import { Cinta, CompartirIOS, Instalar, LibroAbierto, Logo, Luna, Subir, Tipografia } from './Iconos';
 import { esAndroid, useInstalacion } from '../instalacion';
@@ -41,6 +42,12 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
   const instalacion = useInstalacion();
 
   const elegirArchivo = () => fileInputRef.current?.click();
+
+  // Al llegar desde un aviso ("buscá un libro nuevo"), la página baja sola a la sección.
+  const cargada = books !== null;
+  useEffect(() => {
+    if (cargada && location.hash === '#conseguir') document.getElementById('conseguir')?.scrollIntoView();
+  }, [cargada]);
 
   function importarArchivos(fileList: FileList | null) {
     const todos = Array.from(fileList ?? []);
@@ -160,6 +167,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
                   <TarjetaLectura key={book.id} book={book} destacada={i === 0} onOpen={() => onOpen(book.id)} />
                 ))}
               </div>
+              <InvitacionAvisos />
             </div>
           </section>
         )}
@@ -319,6 +327,11 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
           <Contacto />
           <span>LECB — tus libros y notas nunca salen de tu dispositivo</span>
           <span>Contamos visitas de forma anónima y sin cookies (GoatCounter)</span>
+          <ControlAvisos />
+          <span>
+            Si activás los avisos de lectura, guardamos una dirección anónima de notificación y tu zona aproximada (unos
+            10 km), solo para saber el clima. Nunca tus libros ni datos personales.
+          </span>
         </div>
       </footer>
     </div>

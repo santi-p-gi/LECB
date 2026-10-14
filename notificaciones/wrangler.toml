@@ -1,0 +1,22 @@
+# Servidor de avisos de LECB (Cloudflare Workers).
+# Guarda las suscripciones anónimas a notificaciones y, una vez por hora, se fija si en la zona
+# de cada lector hay un momento lindo para leer (lluvia, sol, frío, calor).
+name = "lecb-avisos"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# avisos.lecb.ar (Cloudflare crea solo el registro DNS, porque el dominio ya está en esta cuenta)
+routes = [{ pattern = "avisos.lecb.ar", custom_domain = true }]
+
+[triggers]
+crons = ["0 * * * *"] # cada hora en punto; el código decide a quién le toca según su hora local
+
+[[d1_databases]]
+binding = "DB"
+database_name = "lecb-avisos"
+database_id = "COMPLETAR_AL_CREAR_LA_BASE"
+
+[vars]
+# Llave pública VAPID (la privada es un secreto: `wrangler secret put VAPID_PRIVADA`)
+VAPID_PUBLICA = "BLsLpeyLw2XQJ3pUeUcuOZHOLg30ZLc3hb1gGgbMu5ke7nSL9H6BWojhBuH5EFBLqyy4hP-asqI2_kaa7SQAymg"
+VAPID_CONTACTO = "mailto:contacto@lecb.ar"

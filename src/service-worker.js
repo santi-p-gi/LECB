@@ -84,6 +84,114 @@ self.addEventListener('fetch', (evento) => {
   // Todo lo demás pasa directo, como si no hubiera service worker.
 });
 
+/* ---------- 4. Avisos de lectura (notificaciones) ---------- */
+// El servidor (avisos.lecb.ar) solo "despierta" al dispositivo: el aviso llega vacío. Acá se
+// pregunta qué clima motivó el aviso, se mira en la biblioteca local si hay un libro empezado
+// y se arma el mensaje. Así el servidor nunca sabe qué lee nadie.
+const URL_AVISOS = '__AVISOS__';
+
+const FRASES = {
+  lluvia: {
+    titulo: '🌧️ Día de lluvia',
+    nuevo: ['¿Qué mejor que un buen libro para acompañar esta lluvia? ¿Y si buscás uno nuevo?'],
+    seguir: ['No hay mejor compañía para un libro que esta lluvia. ¿Seguimos con «{libro}»? Vas por el {avance}.'],
+  },
+  sol: {
+    titulo: '☀️ Día de sol',
+    nuevo: ['Este hermoso día de sol amerita un buen libro. ¿Qué te parece buscar uno nuevo?'],
+    seguir: ['Qué lindo es leer bajo los rayos del sol. ¿Querés seguir con «{libro}»?'],
+  },
+  frio: {
+    titulo: '🥶 Hace frío',
+    nuevo: ['Con este frío no dan ganas de salir. ¿Buscamos un libro nuevo para pasar el rato?'],
+    seguir: ['¿Qué mejor para este frío que una manta, un café y un buen libro? ¿Seguís con «{libro}»?'],
+  },
+  calor: {
+    titulo: '🔥 Hace calor',
+    nuevo: ['Con este calor, nada mejor que la sombra y un buen libro. ¿Buscamos uno nuevo?'],
+    seguir: ['Hace mucho calor: buen momento para leer a la sombra. ¿Seguís con «{libro}»?'],
+  },
+  generica: {
+    titulo: '📚 LECB',
+    nuevo: ['Hace unos días que no leés. ¿Buscamos tu próximo libro?'],
+    seguir: [
+      'Hace unos días que no leés. ¿Seguimos con «{libro}»?',
+      'Tus libros te extrañan, y seguro que vos a ellos. ¿Querés seguir con «{libro}»?',
+    ],
+  },
+};
+
+self.addEventListener('push', (evento) => {
+  evento.waitUntil(mostrarAviso());
+});
+
+async function mostrarAviso() {
+  let tipo = 'generica';
+  try {
+    const suscripcion = await self.registration.pushManager.getSubscription();
+    const r = await fetch(`${URL_AVISOS}/ultimo`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ endpoint: suscripcion?.endpoint }),
+    });
+    const datos = await r.json();
+    if (FRASES[datos.tipo]) tipo = datos.tipo;
+  } catch {
+    // sin conexión al servidor: va la genérica
+  }
+  const libro = await libroEmpezado().catch(() => null);
+  const frases = FRASES[tipo];
+  const opciones = libro ? frases.seguir : frases.nuevo;
+  const texto = opciones[Math.floor(Math.random() * opciones.length)]
+    .replace('{libro}', libro?.title ?? '')
+    .replace('{avance}', libro ? `${Math.round(libro.progress * 100)} %` : '');
+  await self.registration.showNotification(frases.titulo, {
+    body: texto,
+    icon: '/iconos/icono-192.png',
+    tag: 'lecb-aviso', // si llega otro, reemplaza al anterior en vez de acumularse
+    data: { url: libro ? `/#/leer/${libro.id}` : '/#conseguir' },
+  });
+}
+
+// El libro que el lector tiene empezado: abierto en los últimos 60 días y sin terminar.
+function libroEmpezado() {
+  return new Promise((ok, mal) => {
+    const pedido = indexedDB.open('biblioteca');
+    pedido.onerror = () => mal(pedido.error);
+    pedido.onsuccess = () => {
+      const db = pedido.result;
+      if (!db.objectStoreNames.contains('books')) return ok(null);
+      const todos = db.transaction('books').objectStore('books').getAll();
+      todos.onerror = () => mal(todos.error);
+      todos.onsuccess = () => {
+        const hace60 = Date.now() - 60 * 24 * 3600 * 1000;
+        const empezados = todos.result
+          .filter((b) => b.lastOpenedAt && b.lastOpenedAt > hace60 && b.progress > 0.01 && b.progress < 0.97)
+          .sort((a, b) => b.lastOpenedAt - a.lastOpenedAt);
+        ok(empezados[0] ?? null);
+        db.close();
+      };
+    };
+  });
+}
+
+// Al tocar el aviso: abre el libro (o la sección para conseguir libros), en LECB si ya estaba abierta.
+self.addEventListener('notificationclick', (evento) => {
+  evento.notification.close();
+  const destino = new URL(evento.notification.data?.url ?? '/', self.location.origin).href;
+  evento.waitUntil(
+    (async () => {
+      const ventanas = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });
+      const abierta = ventanas.find((v) => new URL(v.url).origin === self.location.origin);
+      if (abierta) {
+        await abierta.focus();
+        return abierta.navigate(destino);
+      }
+      return self.clients.openWindow(destino);
+    })(),
+  );
+});
+
 // Cuando alguien comparte un EPUB o PDF con LECB (desde WhatsApp, el mail, las descargas…),
 // Android "envía" el archivo a /compartir. No va a ningún servidor: lo atiende este service
 // worker, que lo deja en una caché del dispositivo y abre la app, que lo importa (ver App.tsx).

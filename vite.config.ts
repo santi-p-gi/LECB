@@ -15,7 +15,10 @@ function serviceWorker(): Plugin {
         type: 'asset',
         fileName: 'sw.js',
         // Se reemplaza el texto entre comillas simples del código ('__VERSION__'), no el del comentario.
-        source: readFileSync('src/service-worker.js', 'utf8').replace("'__VERSION__'", `'${version}'`),
+        source: readFileSync('src/service-worker.js', 'utf8')
+          .replace("'__VERSION__'", `'${version}'`)
+          // Dirección del servidor de avisos (para probar en la compu: VITE_AVISOS_URL=http://localhost:8787)
+          .replace("'__AVISOS__'", `'${process.env.VITE_AVISOS_URL ?? 'https://avisos.lecb.ar'}'`),
       });
     },
   };

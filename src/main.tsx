@@ -4,6 +4,7 @@ import { createRoot } from 'react-dom/client';
 import App from './App';
 import { cargarTemaSitio } from './preferencias';
 import { iniciarApp } from './instalacion';
+import { actualizarZona } from './notificaciones';
 import './index.css';
 
 // Si el usuario eligió tema claro u oscuro antes, lo aplicamos antes de dibujar.
@@ -12,6 +13,8 @@ if (tema) document.documentElement.dataset.theme = tema;
 
 // Service worker (funcionar sin internet) y almacenamiento persistente si está instalada.
 iniciarApp();
+// Avisos de lectura: si el lector cambió de zona (viaje, mudanza), se actualiza sin preguntar.
+if (import.meta.env.PROD) window.addEventListener('load', () => setTimeout(actualizarZona, 3000));
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

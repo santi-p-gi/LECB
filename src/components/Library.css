@@ -345,3 +345,22 @@
   border: 1px solid var(--linea); background: var(--papel); color: var(--tinta); font: 14.5px var(--f-ui);
 }
 .nueva-coleccion input:focus { outline: 2px solid var(--acento); outline-offset: 0; border-color: transparent; }
+
+/* Avisos de lectura */
+.invitacion-avisos {
+  display: flex; align-items: center; gap: 18px; margin-top: 28px; padding: 18px 22px;
+  border: 1px solid var(--linea); border-radius: 14px; background: var(--superficie);
+}
+.invitacion-emoji { font-size: 30px; line-height: 1; }
+.invitacion-texto { flex: 1; min-width: 0; }
+.invitacion-texto b { font: 500 17px/1.3 var(--f-display); }
+.invitacion-texto p { margin: 4px 0 0; font-size: 14px; line-height: 1.5; color: var(--tinta-2); }
+.invitacion-botones { display: flex; gap: 8px; flex: none; }
+@media (max-width: 700px) {
+  .invitacion-avisos { flex-wrap: wrap; }
+  .invitacion-emoji { display: none; }
+  .invitacion-botones { width: 100%; }
+  .invitacion-botones .btn { flex: 1; }
+}
+.control-avisos .enlace { font: inherit; padding: 0; }
+.control-avisos em { font-style: normal; color: var(--tinta-2); }
