@@ -14,7 +14,7 @@ crons = ["0 * * * *"] # cada hora en punto; el código decide a quién le toca s
 [[d1_databases]]
 binding = "DB"
 database_name = "lecb-avisos"
-database_id = "COMPLETAR_AL_CREAR_LA_BASE"
+database_id = "fa4265db-494f-4224-bdb0-90302cd136c7"
 
 [vars]
 # Llave pública VAPID (la privada es un secreto: `wrangler secret put VAPID_PRIVADA`)
