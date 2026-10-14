@@ -24,7 +24,9 @@ export type Evento =
   | 'copia-exportada'
   | 'copia-restaurada'
   | 'ver-fuente'
-  | 'voz';
+  | 'voz'
+  | 'zoom-pdf'
+  | 'pantalla-completa';
 
 export function contarEvento(evento: Evento) {
   const gc = (window as Window & { goatcounter?: GoatCounter }).goatcounter;

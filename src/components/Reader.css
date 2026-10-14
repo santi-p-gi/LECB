@@ -540,3 +540,32 @@
   &[data-tema="noche"] .subrayado-pdf { opacity: .3; mix-blend-mode: normal; }
   .lienzo-pdf { pointer-events: auto; }
 }
+
+/* =========================================================
+   PDF: ZOOM (pellizcar)
+   ========================================================= */
+.lector {
+  /* Mientras no se redibuja, el dibujo anterior se estira desde la esquina */
+  .lienzo-escala { position: relative; transform-origin: 0 0; }
+  /* La página agrandada ocupa toda la pantalla y se recorre arrastrando con el dedo */
+  .zoom-pdf {
+    position: fixed; inset: 0; z-index: 5; overflow: auto; display: flex;
+    background: var(--hoja); touch-action: pan-x pan-y; overscroll-behavior: contain;
+    transition: opacity .15s;
+  }
+  .zoom-hoja { position: relative; flex: none; margin: auto; }
+  .zoom-pdf .pagina-pdf { pointer-events: none; }
+  .zoom-pdf .lienzo-pdf { pointer-events: auto; }
+  .pastilla-zoom {
+    position: fixed; left: 50%; bottom: 72px; transform: translateX(-50%); z-index: 21;
+    display: flex; align-items: center; gap: 10px; padding: 6px 6px 6px 14px; border-radius: 999px;
+    background: var(--ui); border: 1px solid var(--ui-borde); font-size: 13px; color: var(--texto-2); white-space: nowrap;
+    font-variant-numeric: tabular-nums; backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    box-shadow: 0 6px 18px -8px rgba(0,0,0,.35);
+  }
+  .pastilla-zoom button {
+    border: 0; border-radius: 999px; padding: 7px 12px; cursor: pointer;
+    background: var(--acento); color: var(--hoja); font: 500 13px/1 var(--f-ui);
+  }
+  &.inmersivo .pastilla-zoom { bottom: 16px; }
+}

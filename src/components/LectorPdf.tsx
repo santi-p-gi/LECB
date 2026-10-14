@@ -1,6 +1,6 @@
 // Lector de PDF: muestra las páginas del PDF tal cual (con fórmulas, tablas y gráficos),
 // dentro del mismo diseño de libro que los EPUB.
-import { useEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as EventoMouse } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type MouseEvent as EventoMouse } from 'react';
 import { getBook, getBookFile, updateBook, type BookMeta, type ColorSubrayado, type Marcador, type Subrayado } from '../db';
 import { COLORES_SUBRAYADO, descargarSubrayados } from '../subrayados';
 import { EditorNota, ListaSubrayados, MenuSubrayado, type PosicionMenu } from './Subrayados';
@@ -49,6 +49,9 @@ function unirRenglones(rects: DOMRect[], caja: DOMRect): [number, number, number
 
 /* ---------- una página del PDF dibujada en un canvas ---------- */
 
+// Tope de píxeles por página: con mucho zoom el canvas sería enorme (y los celulares tienen límite).
+const MAX_PIXELES = 10_000_000;
+
 interface PaginaPdfProps {
   pdf: DocumentoPdf;
   indice: number; // empieza en 0
@@ -56,29 +59,40 @@ interface PaginaPdfProps {
   top: number;
   ancho: number;
   alto: number;
+  proporcion: number; // forma aproximada de la página, para ocupar su lugar antes de dibujarse
   tema: Tema;
   resaltes: number[][] | null; // rectángulos en unidades del PDF (búsqueda)
   subrayados: Subrayado[]; // los de esta página
   onTocarSubrayado: (id: string, rect: DOMRect) => void;
+  onDibujada?: () => void;
 }
 
-function PaginaPdf({ pdf, indice, left, top, ancho, alto, tema, resaltes, subrayados, onTocarSubrayado }: PaginaPdfProps) {
+function PaginaPdf({ pdf, indice, left, top, ancho, alto, proporcion, tema, resaltes, subrayados, onTocarSubrayado, onDibujada }: PaginaPdfProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const capaRef = useRef<HTMLDivElement>(null);
   const lienzoRef = useRef<HTMLDivElement>(null);
-  const [vista, setVista] = useState<{ escala: number; ancho: number; alto: number } | null>(null);
+  // vista: cómo quedó dibujada la página la última vez (escala y tamaño en pantalla, y para qué caja).
+  const [vista, setVista] = useState<{ escala: number; ancho: number; alto: number; caja: number } | null>(null);
+  const yaDibujada = useRef(false);
+  const avisar = useRef(onDibujada);
+  avisar.current = onDibujada;
 
   useEffect(() => {
     let cancelado = false;
     let tarea: { cancel(): void } | null = null;
     let capaTexto: { cancel(): void } | null = null;
     (async () => {
+      // Si ya estaba dibujada y cambia el tamaño (zoom), esperamos un poquito: mientras se pellizca
+      // llegan muchos tamaños seguidos y solo vale la pena dibujar el último.
+      if (yaDibujada.current) await new Promise((r) => setTimeout(r, 120));
+      if (cancelado) return;
       const pagina = await pdf.getPage(indice + 1);
       if (cancelado) return;
       const base = pagina.getViewport({ scale: 1 });
       const escala = Math.min(ancho / base.width, alto / base.height);
       // Más resolución en pantallas de alta densidad (celulares), con tope para no gastar memoria.
-      const densidad = Math.min(window.devicePixelRatio || 1, 2);
+      const pixeles = base.width * escala * base.height * escala;
+      const densidad = Math.min(window.devicePixelRatio || 1, 2, Math.sqrt(MAX_PIXELES / pixeles));
       const vp = pagina.getViewport({ scale: escala * densidad });
       // Se dibuja en un canvas aparte y se copia al final: así la página anterior no parpadea.
       const temporal = document.createElement('canvas');
@@ -92,7 +106,10 @@ function PaginaPdf({ pdf, indice, left, top, ancho, alto, tema, resaltes, subray
       canvas.width = temporal.width;
       canvas.height = temporal.height;
       canvas.getContext('2d')?.drawImage(temporal, 0, 0);
-      setVista({ escala, ancho: base.width * escala, alto: base.height * escala });
+      temporal.width = temporal.height = 0; // libera la memoria del canvas auxiliar
+      setVista({ escala, ancho: base.width * escala, alto: base.height * escala, caja: ancho });
+      yaDibujada.current = true;
+      avisar.current?.();
 
       // Encima del dibujo va el texto real, invisible, en la misma posición: así se puede seleccionar.
       const capa = capaRef.current;
@@ -134,44 +151,50 @@ function PaginaPdf({ pdf, indice, left, top, ancho, alto, tema, resaltes, subray
     }
   }
 
+  // Tamaño en pantalla. Si cambió la caja (zoom) y todavía no se volvió a dibujar, se estira
+  // el dibujo anterior (k) para que el cambio se vea al instante; después queda nítido.
+  const k = vista ? ancho / vista.caja : 1;
+  const tam = vista
+    ? { width: vista.ancho * k, height: vista.alto * k }
+    : { width: Math.min(ancho, alto * proporcion), height: Math.min(alto, ancho / proporcion) };
   // Los rectángulos del PDF tienen el origen abajo a la izquierda; la pantalla, arriba a la izquierda.
   const altoPdf = vista ? vista.alto / vista.escala : 0;
   return (
     <div className={`pagina-pdf pdf-${tema}`} data-pagina={indice} style={{ left, top, width: ancho, height: alto }}>
-      <div
-        className="lienzo-pdf"
-        ref={lienzoRef}
-        onClick={alClic}
-        style={vista ? { width: vista.ancho, height: vista.alto } : undefined}
-      >
-        <canvas ref={canvasRef} style={vista ? { width: vista.ancho, height: vista.alto } : undefined} />
-        {/* Subrayados: debajo de la capa de texto, para que se pueda seguir seleccionando encima */}
-        {subrayados.flatMap((s) =>
-          (s.pdf?.rects ?? []).map(([x, y, w, h], i) => (
-            <span
-              key={`${s.id}-${i}`}
-              className="subrayado-pdf"
-              style={{
-                left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%`,
-                '--color': COLORES_SUBRAYADO[s.color].color,
-              } as CSSProperties}
-            />
-          )),
-        )}
-        <div className="textLayer" ref={capaRef} />
-        {vista &&
-          resaltes?.map(([x1, y1, x2, y2], i) => (
-            <span
-              key={i}
-              className="resalte-pdf"
-              style={{
-                left: x1 * vista.escala,
-                top: (altoPdf - y2) * vista.escala,
-                width: (x2 - x1) * vista.escala,
-                height: (y2 - y1) * vista.escala,
-              }}
-            />
-          ))}
+      <div className="lienzo-pdf" ref={lienzoRef} onClick={alClic} style={tam}>
+        <div
+          className="lienzo-escala"
+          style={vista ? { width: vista.ancho, height: vista.alto, transform: k !== 1 ? `scale(${k})` : undefined } : undefined}
+        >
+          <canvas ref={canvasRef} style={vista ? { width: vista.ancho, height: vista.alto } : undefined} />
+          {/* Subrayados: debajo de la capa de texto, para que se pueda seguir seleccionando encima */}
+          {subrayados.flatMap((s) =>
+            (s.pdf?.rects ?? []).map(([x, y, w, h], i) => (
+              <span
+                key={`${s.id}-${i}`}
+                className="subrayado-pdf"
+                style={{
+                  left: `${x * 100}%`, top: `${y * 100}%`, width: `${w * 100}%`, height: `${h * 100}%`,
+                  '--color': COLORES_SUBRAYADO[s.color].color,
+                } as CSSProperties}
+              />
+            )),
+          )}
+          <div className="textLayer" ref={capaRef} />
+          {vista &&
+            resaltes?.map(([x1, y1, x2, y2], i) => (
+              <span
+                key={i}
+                className="resalte-pdf"
+                style={{
+                  left: x1 * vista.escala,
+                  top: (altoPdf - y2) * vista.escala,
+                  width: (x2 - x1) * vista.escala,
+                  height: (y2 - y1) * vista.escala,
+                }}
+              />
+            ))}
+        </div>
       </div>
     </div>
   );
@@ -205,6 +228,9 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   const [resultados, setResultados] = useState<ResultadoPdf[]>([]);
   const [estadoBusqueda, setEstadoBusqueda] = useState<EstadoBusqueda>('vacia');
   const [resalte, setResalte] = useState<{ pagina: number; rects: number[][] } | null>(null);
+  // Zoom (pellizcar): una sola página agrandada que se recorre arrastrando. null = página entera.
+  const [zoom, setZoom] = useState<{ z: number; pagina: number } | null>(null);
+  const [zoomListo, setZoomListo] = useState(false); // la página agrandada ya se dibujó
 
   const libroRef = useRef<HTMLDivElement>(null);
   const contenidoRef = useRef<HTMLDivElement>(null);
@@ -213,6 +239,12 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   const toque = useRef<{ x: number; y: number } | null>(null);
   const deslizo = useRef(false);
   const busquedaActual = useRef(0);
+  const escenarioRef = useRef<HTMLElement>(null);
+  const zoomRef = useRef<HTMLDivElement>(null);
+  const zoomHojaRef = useRef<HTMLDivElement>(null);
+  // Punto de la página (u, v entre 0 y 1) que tiene que quedar bajo el dedo (x, y) después del zoom.
+  const anclaZoom = useRef<{ u: number; v: number; x: number; y: number } | null>(null);
+  const ultimoToque = useRef<{ t: number; x: number; y: number } | null>(null);
 
   const total = pdf?.numPages ?? 0;
   // En doble página se muestran de a pares (1–2, 3–4…).
@@ -298,6 +330,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
 
   /* ---------- navegación ---------- */
   function ir(dir: 1 | -1) {
+    setZoom(null);
     const nuevo = inicio + dir * (L.doble ? 2 : 1);
     if (nuevo < 0 || nuevo >= total) {
       libroRef.current?.animate(
@@ -312,6 +345,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   }
 
   function irAPagina(p: number) {
+    setZoom(null);
     setActual(Math.min(Math.max(0, p), total - 1));
     setPanel(null);
   }
@@ -332,7 +366,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
     }
   }, [panel]);
 
-  function tocarEn(x: number) {
+  function tocarEn(x: number, y: number) {
     if (deslizo.current) {
       deslizo.current = false;
       return;
@@ -347,18 +381,169 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
       cerrarMenu();
       return;
     }
+    // Doble toque: acerca (o vuelve a la página entera si ya hay zoom).
+    const antes = ultimoToque.current;
+    const dobleToque = !!antes && Date.now() - antes.t < 350 && Math.hypot(x - antes.x, y - antes.y) < 40;
+    ultimoToque.current = dobleToque ? null : { t: Date.now(), x, y };
+    if (zoom) {
+      if (dobleToque) setZoom(null);
+      else if (inmersivo) despertar();
+      else setInmersivo(true);
+      return;
+    }
     const r = libroRef.current?.getBoundingClientRect();
     if (!r) return;
     const rel = (x - r.left) / r.width;
     if (L.doble) ir(rel < 0.5 ? -1 : 1);
     else if (rel < 0.3) ir(-1);
     else if (rel > 0.7) ir(1);
+    else if (dobleToque) zoomEn(2.5, x, y);
     else if (inmersivo) despertar();
     else setInmersivo(true);
   }
 
+  /* ---------- zoom ---------- */
+  const ZOOM_MAX = 5;
+
+  // La página que está bajo un punto de la pantalla (o la primera visible) y su lugar en pantalla.
+  function paginaEn(x: number, y: number) {
+    const capa = zoom ? zoomRef.current : contenidoRef.current;
+    const bajo = document.elementsFromPoint(x, y)
+      .map((el) => el.closest<HTMLElement>('.pagina-pdf'))
+      .find((el) => el && capa?.contains(el));
+    const pagina = bajo ?? capa?.querySelector<HTMLElement>('.pagina-pdf');
+    const lienzo = pagina?.querySelector('.lienzo-pdf');
+    if (!pagina || !lienzo) return null;
+    return { indice: Number(pagina.dataset.pagina), caja: lienzo.getBoundingClientRect() };
+  }
+
+  // Lleva el zoom a z, dejando quieto el punto (x, y) de la pantalla.
+  function zoomEn(z: number, x: number, y: number) {
+    const p = paginaEn(x, y);
+    if (!p) return;
+    if (z < 1.1) {
+      setZoom(null);
+      return;
+    }
+    anclaZoom.current = { u: (x - p.caja.left) / p.caja.width, v: (y - p.caja.top) / p.caja.height, x, y };
+    if (!zoom) {
+      setZoomListo(false);
+      contarEvento('zoom-pdf');
+    }
+    setZoom({ z: Math.min(z, ZOOM_MAX), pagina: p.indice });
+  }
+
+  // Después de cambiar el zoom, se mueve el desplazamiento para que el punto anclado quede bajo el dedo.
+  useLayoutEffect(() => {
+    const ancla = anclaZoom.current, capa = zoomRef.current;
+    if (!zoom || !ancla || !capa) return;
+    anclaZoom.current = null;
+    const caja = capa.querySelector('.lienzo-pdf')?.getBoundingClientRect();
+    if (!caja) return;
+    capa.scrollLeft += caja.left + ancla.u * caja.width - ancla.x;
+    capa.scrollTop += caja.top + ancla.v * caja.height - ancla.y;
+  }, [zoom]);
+
+  // Pellizcar (dos dedos) y, en la compu, Ctrl + rueda (así llega el pellizco del touchpad).
+  // Mientras se pellizca solo se estira la imagen (rápido); al soltar se dibuja de nuevo, nítida.
+  const pellizco = useRef<{
+    d0: number; x0: number; y0: number; z0: number; f: number; x: number; y: number;
+    el: HTMLElement; indice: number; u: number; v: number;
+  } | null>(null);
+  const gestos = useRef({
+    empezar: (_: TouchEvent) => {},
+    mover: (_: TouchEvent) => {},
+    terminar: () => {},
+    rueda: (_: WheelEvent) => {},
+  });
+  const dosDedos = (t: TouchList) => ({
+    d: Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY),
+    x: (t[0].clientX + t[1].clientX) / 2,
+    y: (t[0].clientY + t[1].clientY) / 2,
+  });
+  gestos.current = {
+    empezar(e) {
+      if (e.touches.length !== 2 || !pdf || panel) return;
+      const { d, x, y } = dosDedos(e.touches);
+      const p = paginaEn(x, y);
+      const el = zoom ? zoomHojaRef.current : libroRef.current;
+      if (!p || !el || d < 10) return;
+      toque.current = null; // que no cuente como deslizar para pasar de página
+      deslizo.current = true;
+      window.getSelection()?.removeAllRanges();
+      setMenu(null);
+      const caja = el.getBoundingClientRect();
+      el.style.transformOrigin = `${x - caja.left}px ${y - caja.top}px`;
+      pellizco.current = {
+        d0: d, x0: x, y0: y, z0: zoom?.z ?? 1, f: 1, x, y, el, indice: p.indice,
+        u: (x - p.caja.left) / p.caja.width, v: (y - p.caja.top) / p.caja.height,
+      };
+    },
+    mover(e) {
+      const p = pellizco.current;
+      if (!p || e.touches.length !== 2) return;
+      e.preventDefault(); // que el navegador no agrande toda la página ni la desplace
+      const { d, x, y } = dosDedos(e.touches);
+      p.f = Math.min(ZOOM_MAX, Math.max(0.6, (p.z0 * d) / p.d0)) / p.z0;
+      p.x = x;
+      p.y = y;
+      p.el.style.transform = `translate(${x - p.x0}px, ${y - p.y0}px) scale(${p.f})`;
+    },
+    terminar() {
+      const p = pellizco.current;
+      if (!p) return;
+      pellizco.current = null;
+      const z = p.z0 * p.f;
+      if (z < 1.1) {
+        p.el.style.transform = '';
+        setZoom(null);
+        return;
+      }
+      anclaZoom.current = { u: p.u, v: p.v, x: p.x, y: p.y };
+      if (!zoom) {
+        // Al entrar al zoom, el libro estirado queda a la vista hasta que la página grande se dibuje.
+        setZoomListo(false);
+        contarEvento('zoom-pdf');
+      } else p.el.style.transform = '';
+      setZoom({ z: Math.min(z, ZOOM_MAX), pagina: p.indice });
+    },
+    rueda(e) {
+      if (!e.ctrlKey || !pdf || panel) return;
+      e.preventDefault();
+      zoomEn((zoom?.z ?? 1) * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
+    },
+  };
+  useEffect(() => {
+    const el = escenarioRef.current;
+    if (!el) return;
+    const empezar = (e: TouchEvent) => gestos.current.empezar(e);
+    const mover = (e: TouchEvent) => gestos.current.mover(e);
+    const terminar = (e: TouchEvent) => {
+      if (e.touches.length < 2) gestos.current.terminar();
+    };
+    const rueda = (e: WheelEvent) => gestos.current.rueda(e);
+    el.addEventListener('touchstart', empezar, { passive: true });
+    el.addEventListener('touchmove', mover, { passive: false });
+    el.addEventListener('touchend', terminar);
+    el.addEventListener('touchcancel', terminar);
+    el.addEventListener('wheel', rueda, { passive: false });
+    return () => {
+      el.removeEventListener('touchstart', empezar);
+      el.removeEventListener('touchmove', mover);
+      el.removeEventListener('touchend', terminar);
+      el.removeEventListener('touchcancel', terminar);
+      el.removeEventListener('wheel', rueda);
+    };
+  }, []);
+
+  // Cuando la página agrandada ya está dibujada, el libro (que quedó estirado) vuelve a su lugar.
+  useEffect(() => {
+    const libro = libroRef.current;
+    if (libro && (zoomListo || !zoom)) libro.style.transform = '';
+  }, [zoomListo, zoom]);
+
   function finToque(x: number, y: number) {
-    if (!toque.current) return;
+    if (!toque.current || zoom) return;
     const dx = x - toque.current.x, dy = y - toque.current.y;
     if (Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy)) {
       deslizo.current = true;
@@ -453,7 +638,8 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
           : rango.startContainer.parentElement;
         const pagina = inicioEl?.closest<HTMLElement>('.pagina-pdf');
         const lienzo = pagina?.querySelector('.lienzo-pdf');
-        if (!texto || !pagina || !lienzo || !contenidoRef.current?.contains(pagina)) return;
+        if (!texto || !pagina || !lienzo) return;
+        if (!contenidoRef.current?.contains(pagina) && !zoomRef.current?.contains(pagina)) return;
         const caja = lienzo.getBoundingClientRect();
         const rects = unirRenglones([...rango.getClientRects()], caja);
         if (!rects.length) return;
@@ -601,9 +787,10 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
 
       <main
         className="escenario"
-        onClick={(e) => tocarEn(e.clientX)}
+        ref={escenarioRef}
+        onClick={(e) => tocarEn(e.clientX, e.clientY)}
         onPointerDown={(e) => {
-          if (e.pointerType !== 'mouse') {
+          if (e.pointerType !== 'mouse' && e.isPrimary) {
             toque.current = { x: e.clientX, y: e.clientY };
             deslizo.current = false;
           }
@@ -613,7 +800,11 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
         {error ? (
           <p className="aviso">{error}</p>
         ) : (
-          <div className={`libro ${L.doble ? '' : 'una'}`} ref={libroRef} style={varsLibro}>
+          <div
+            className={`libro ${L.doble ? '' : 'una'}`}
+            ref={libroRef}
+            style={{ ...varsLibro, visibility: zoom && zoomListo ? 'hidden' : undefined }}
+          >
             <div className="canto canto-izq" style={{ '--w': `${2 + 10 * progreso}px` } as CSSProperties} />
             <div className="canto canto-der" style={{ '--w': `${2 + 10 * (1 - progreso)}px` } as CSSProperties} />
             {L.doble ? (
@@ -635,6 +826,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
                     top={L.mt}
                     ancho={L.cw}
                     alto={L.ch}
+                    proporcion={proporcion}
                     tema={prefs.tema}
                     resaltes={resalte?.pagina === p ? resalte.rects : null}
                     subrayados={subrayados.filter((s) => s.pdf?.pagina === p)}
@@ -648,7 +840,36 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
             <div className={`cinta ${marcada ? 'activa' : ''}`} style={{ right: L.doble ? '12%' : '10%' }} />
           </div>
         )}
+        {pdf && zoom && (
+          <div className="zoom-pdf" ref={zoomRef} style={{ opacity: zoomListo ? 1 : 0 }}>
+            <div className="zoom-hoja" ref={zoomHojaRef} style={{ width: L.cw * zoom.z, height: L.ch * zoom.z }}>
+              <PaginaPdf
+                pdf={pdf}
+                indice={zoom.pagina}
+                left={0}
+                top={0}
+                ancho={L.cw * zoom.z}
+                alto={L.ch * zoom.z}
+                proporcion={proporcion}
+                tema={prefs.tema}
+                resaltes={resalte?.pagina === zoom.pagina ? resalte.rects : null}
+                subrayados={subrayados.filter((s) => s.pdf?.pagina === zoom.pagina)}
+                onTocarSubrayado={(id, r) =>
+                  setMenu({ posicion: { x: r.left + r.width / 2, arriba: r.top, abajo: r.bottom }, id })
+                }
+                onDibujada={() => setZoomListo(true)}
+              />
+            </div>
+          </div>
+        )}
       </main>
+
+      {zoom && (
+        <div className="pastilla-zoom">
+          <span>{Math.round(zoom.z * 100)} %</span>
+          <button onClick={() => setZoom(null)}>Ver página entera</button>
+        </div>
+      )}
 
       <footer className="barra barra-inf">
         <span className="info-b">{arrastre !== null ? `Ir a la página ${arrastre + 1}` : infoPaginas}</span>
