@@ -7,6 +7,8 @@ import { abrirEpub, calcularPaginas, ubicarCapitulos } from '../epub';
 import { getBook, getBookFile, updateBook, type BookMeta, type ColorSubrayado, type Marcador, type Subrayado } from '../db';
 import { COLORES_SUBRAYADO, descargarSubrayados } from '../subrayados';
 import { EditorNota, ListaSubrayados, MenuSubrayado, NotasMargen, type NotaVisible, type PosicionMenu } from './Subrayados';
+import PanelDiccionario from './Diccionario';
+import { esUnaPalabra } from '../diccionario';
 import {
   cargarPreferencias, guardarPreferencias, FUENTES, TAMANOS, TEMAS,
   type Fuente, type Preferencias, type Tema,
@@ -196,6 +198,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   // Menú flotante: sobre texto recién seleccionado (nuevo) o sobre un subrayado existente (id).
   const [menu, setMenu] = useState<{ posicion: PosicionMenu; nuevo?: { cfi: string; texto: string }; id?: string } | null>(null);
   const [notaAbierta, setNotaAbierta] = useState<string | null>(null); // id del subrayado cuya nota se edita
+  const [definiendo, setDefiniendo] = useState<string | null>(null); // palabra abierta en el diccionario
   const [notasVisibles, setNotasVisibles] = useState<NotaVisible[]>([]); // notas en la página actual
   const [inmersivo, setInmersivo] = useState(false);
   const [arrastre, setArrastre] = useState<number | null>(null); // valor de la barra mientras se arrastra
@@ -520,6 +523,11 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   }
 
   function alTeclear(e: KeyboardEvent) {
+    // Con el diccionario abierto, el teclado no mueve el libro (Escape lo cierra).
+    if (definiendo) {
+      if (e.key === 'Escape') setDefiniendo(null);
+      return;
+    }
     // Con la guía abierta, el teclado no mueve el libro (Escape la cierra).
     if (guia) {
       if (e.key === 'Escape') setGuia(false);
@@ -709,6 +717,19 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
     if (nota.trim() && !subrayados.find((s) => s.id === id)?.nota) contarEvento('nota');
     guardarSubrayados(subrayados.map((s) => (s.id === id ? { ...s, nota: nota.trim() || null } : s)));
     setNotaAbierta(null);
+  }
+
+  // Idioma del libro (de sus datos), para buscar la palabra en la sección correcta del diccionario.
+  const idiomaLibro = () =>
+    String((bookRef.current?.packaging?.metadata as { language?: string } | undefined)?.language ?? 'es').slice(0, 2).toLowerCase();
+
+  const cerrarDiccionario = () => setDefiniendo(null);
+
+  function definirSeleccion() {
+    if (!menu?.nuevo) return;
+    setDefiniendo(menu.nuevo.texto);
+    contarEvento('diccionario');
+    cerrarMenu();
   }
 
   function copiarSeleccion() {
@@ -1146,8 +1167,10 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
           }}
           onCopiar={menu.nuevo ? copiarSeleccion : undefined}
           onBorrar={subrayadoDelMenu ? () => borrarSubrayado(subrayadoDelMenu.id) : undefined}
+          onDefinir={menu.nuevo && esUnaPalabra(menu.nuevo.texto) ? definirSeleccion : undefined}
         />
       )}
+      {definiendo && <PanelDiccionario texto={definiendo} idioma={idiomaLibro()} onCerrar={cerrarDiccionario} />}
       {subrayadoConNota && (
         <EditorNota
           texto={subrayadoConNota.texto}

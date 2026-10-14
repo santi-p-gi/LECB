@@ -70,7 +70,7 @@ export default function GuiaLector({ conSubrayados, conVoz = conSubrayados, onCe
       ? [
           {
             titulo: 'Subrayá y anotá',
-            texto: 'Seleccioná un texto para subrayarlo en colores, agregarle una nota o copiarlo.',
+            texto: 'Seleccioná un texto para subrayarlo en colores, agregarle una nota o copiarlo. Si seleccionás una sola palabra, «Definir» te muestra qué significa.',
             dibujo: <DibujoSubrayar />,
           },
         ]

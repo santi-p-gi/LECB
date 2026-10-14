@@ -612,3 +612,33 @@
   }
   .texto-pdf-columnas .texto-pdf-vacio { font-style: italic; color: var(--texto-2); text-align: left; }
 }
+
+/* =========================================================
+   DICCIONARIO (panel de abajo)
+   ========================================================= */
+.lector {
+  .diccionario-fondo { position: fixed; inset: 0; z-index: 44; }
+  .diccionario {
+    position: fixed; z-index: 45; left: 50%; bottom: 0; transform: translateX(-50%);
+    width: min(560px, 100%); max-height: min(52vh, 460px); display: flex; flex-direction: column;
+    background: var(--hoja); color: var(--texto); border: 1px solid var(--ui-borde); border-bottom: 0;
+    border-radius: 16px 16px 0 0; box-shadow: 0 -14px 40px -12px rgba(0,0,0,.35);
+    animation: subir-panel .2s ease-out;
+  }
+  .diccionario-cab { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 16px 6px 20px; }
+  .diccionario-cab h2 { font: 500 24px/1.15 var(--f-display); margin: 4px 0 0; overflow-wrap: anywhere; }
+  .diccionario-forma { margin: 4px 0 0; font-size: 13px; color: var(--texto-2); }
+  .diccionario-cuerpo { overflow-y: auto; padding: 4px 20px 10px; overscroll-behavior: contain; }
+  .diccionario-cuerpo h3 { font: 600 11px/1 var(--f-ui); letter-spacing: .14em; text-transform: uppercase; color: var(--acento); margin: 14px 0 6px; }
+  .diccionario-cuerpo ol { margin: 0; padding-left: 1.3em; font: 400 15.5px/1.5 var(--f-lectura); }
+  .diccionario-cuerpo li { margin-bottom: 6px; }
+  .diccionario-cuerpo li::marker { color: var(--texto-2); font-size: .85em; }
+  .diccionario-aviso { margin: 10px 0; font: italic 15px/1.5 var(--f-lectura); color: var(--texto-2); }
+  .diccionario-pie {
+    display: flex; align-items: center; gap: 14px; padding: 10px 20px calc(12px + env(safe-area-inset-bottom));
+    border-top: 1px solid var(--ui-borde); font-size: 12.5px; color: var(--texto-2);
+  }
+  .diccionario-pie .espacio { flex: 1; }
+  .diccionario-pie a { color: var(--acento); text-decoration: none; font-weight: 500; }
+}
+@keyframes subir-panel { from { transform: translate(-50%, 30px); opacity: 0; } to { transform: translate(-50%, 0); opacity: 1; } }

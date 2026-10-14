@@ -4,6 +4,8 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { getBook, getBookFile, updateBook, type BookMeta, type ColorSubrayado, type Marcador, type Subrayado } from '../db';
 import { COLORES_SUBRAYADO, descargarSubrayados } from '../subrayados';
 import { EditorNota, ListaSubrayados, MenuSubrayado, type PosicionMenu } from './Subrayados';
+import PanelDiccionario from './Diccionario';
+import { esUnaPalabra } from '../diccionario';
 import { cargarPreferencias, FUENTES, guardarPreferencias, TAMANOS, type Preferencias, type Tema } from '../preferencias';
 import {
   abrirPdf, buscarEnPdf, CapaTexto, cerrarPdf, enlacesDePagina, fraseDePagina, idiomaDe, indicePdf, paginaDeEnlace, parrafosDePagina,
@@ -343,6 +345,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
     id?: string;
   } | null>(null);
   const [notaAbierta, setNotaAbierta] = useState<string | null>(null);
+  const [definiendo, setDefiniendo] = useState<{ texto: string; idioma: string } | null>(null); // diccionario
   const [inmersivo, setInmersivo] = useState(false);
   const [arrastre, setArrastre] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -702,6 +705,8 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   // La última versión de la función de teclado (para que el listener vea el estado actual).
   const teclado = useRef((_: KeyboardEvent) => {});
   teclado.current = (e: KeyboardEvent) => {
+    // Con el diccionario abierto, el teclado no mueve el libro (el panel se cierra con Escape).
+    if (definiendo) return;
     // Con la guía abierta, el teclado no mueve el libro (Escape la cierra).
     if (guia) {
       if (e.key === 'Escape') setGuia(false);
@@ -1102,7 +1107,24 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
               : undefined
           }
           onBorrar={subrayadoDelMenu ? () => borrarSubrayado(subrayadoDelMenu.id) : undefined}
+          onDefinir={
+            menu.nuevo && pdf && esUnaPalabra(menu.nuevo.texto)
+              ? () => {
+                  const { texto, pagina } = menu.nuevo!;
+                  cerrarMenu();
+                  contarEvento('diccionario');
+                  // El idioma se adivina por el texto de la página (los PDF casi nunca lo dicen).
+                  parrafosDePagina(pdf, pagina)
+                    .then((p) => idiomaDe(p))
+                    .catch(() => 'es')
+                    .then((idioma) => setDefiniendo({ texto, idioma }));
+                }
+              : undefined
+          }
         />
+      )}
+      {definiendo && (
+        <PanelDiccionario texto={definiendo.texto} idioma={definiendo.idioma} onCerrar={() => setDefiniendo(null)} />
       )}
       {subrayadoConNota && (
         <EditorNota

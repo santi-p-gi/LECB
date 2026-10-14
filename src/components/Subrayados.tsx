@@ -19,13 +19,15 @@ interface MenuProps {
   onNota: () => void;
   onCopiar?: () => void;
   onBorrar?: () => void;
+  onDefinir?: () => void; // solo si se seleccionó una sola palabra
 }
 
-export function MenuSubrayado({ posicion, colorActual, tieneNota, onColor, onNota, onCopiar, onBorrar }: MenuProps) {
+export function MenuSubrayado({ posicion, colorActual, tieneNota, onColor, onNota, onCopiar, onBorrar, onDefinir }: MenuProps) {
   // En pantallas táctiles el sistema pone su propio menú arriba de la selección: el nuestro va abajo.
   const tactil = window.matchMedia?.('(pointer: coarse)').matches ?? false;
   const arriba = !tactil && posicion.arriba > 120;
-  const x = Math.min(Math.max(posicion.x, 150), window.innerWidth - 150);
+  const medio = onDefinir ? 180 : 150; // la mitad del ancho del menú, para que no se salga de la pantalla
+  const x = Math.min(Math.max(posicion.x, medio), window.innerWidth - medio);
   const estilo = arriba
     ? { left: x, top: posicion.arriba - 10, transform: 'translate(-50%, -100%)' }
     : { left: x, top: Math.min(posicion.abajo + 10, window.innerHeight - 70), transform: 'translateX(-50%)' };
@@ -51,6 +53,7 @@ export function MenuSubrayado({ posicion, colorActual, tieneNota, onColor, onNot
       ))}
       <span className="menu-sep" />
       <button className="menu-accion" onClick={onNota}>{tieneNota ? 'Editar nota' : 'Nota'}</button>
+      {onDefinir && <button className="menu-accion" onClick={onDefinir}>Definir</button>}
       {onCopiar && <button className="menu-accion" onClick={onCopiar}>Copiar</button>}
       {onBorrar && <button className="menu-accion peligro" onClick={onBorrar}>Borrar</button>}
     </div>
