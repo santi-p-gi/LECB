@@ -10,7 +10,10 @@ import {
   type DocumentoPdf, type EntradaIndicePdf, type ResultadoPdf,
 } from '../pdf';
 import { normalizar } from '../busqueda';
-import { animarFundido, animarHoja, medidasPdf, mismasMedidas, Pagina, PanelAjustes } from './MarcoLibro';
+import {
+  animarFundido, animarHoja, medidasPdf, mismasMedidas, modoCompleto, Pagina, PanelAjustes, pedirPantallaCompleta,
+  useSalidaPantallaCompleta,
+} from './MarcoLibro';
 import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
 import { Cerrar, Cinta, Lista, Lupa, Volver } from './Iconos';
 import './Reader.css';
@@ -207,7 +210,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   const [pdf, setPdf] = useState<DocumentoPdf | null>(null);
   const [meta, setMeta] = useState<BookMeta | null>(null);
   const [proporcion, setProporcion] = useState(0.707); // ancho/alto de la página (A4 por defecto)
-  const [L, setL] = useState(() => medidasPdf(prefs.doble, 0.707));
+  const [L, setL] = useState(() => medidasPdf(prefs.doble, 0.707, modoCompleto(prefs.completa)));
   const [actual, setActual] = useState(0); // página actual (empieza en 0)
   const [indice, setIndice] = useState<EntradaIndicePdf[]>([]);
   const [marcadores, setMarcadores] = useState<Marcador[]>([]);
@@ -289,7 +292,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   /* ---------- medidas según la pantalla y la forma del PDF ---------- */
   useEffect(() => {
     const recalcular = () => setL((prev) => {
-      const nuevo = medidasPdf(prefs.doble, proporcion);
+      const nuevo = medidasPdf(prefs.doble, proporcion, modoCompleto(prefs.completa));
       return mismasMedidas(prev, nuevo) ? prev : nuevo;
     });
     recalcular();
@@ -303,9 +306,10 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
       clearTimeout(reloj);
       window.removeEventListener('resize', alCambiar);
     };
-  }, [prefs.doble, proporcion]);
+  }, [prefs.doble, prefs.completa, proporcion]);
 
   useEffect(() => guardarPreferencias(prefs), [prefs]);
+  useSalidaPantallaCompleta(() => setPrefs((p) => ({ ...p, completa: false })));
 
   // La primera vez que se abre un libro (en este navegador) se muestra la guía rápida.
   const [guia, setGuia] = useState(false);
@@ -367,6 +371,8 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   }, [panel]);
 
   function tocarEn(x: number, y: number) {
+    // La pantalla completa del navegador se pierde al cerrar el libro: se retoma con el primer toque.
+    if (prefs.completa) pedirPantallaCompleta();
     if (deslizo.current) {
       deslizo.current = false;
       return;
@@ -755,7 +761,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   const cajonAbierto = panel === 'indice' || panel === 'buscar';
 
   return (
-    <div className={`lector ${inmersivo ? 'inmersivo' : ''}`} data-tema={prefs.tema} onMouseMove={despertar}>
+    <div className={`lector ${inmersivo ? 'inmersivo' : ''} ${L.completo ? 'completo' : ''}`} data-tema={prefs.tema} onMouseMove={despertar}>
       <header className="barra barra-sup">
         <button className="btn-l" onClick={onClose} aria-label="Volver a la biblioteca">
           <Volver />

@@ -569,3 +569,22 @@
   }
   &.inmersivo .pastilla-zoom { bottom: 16px; }
 }
+
+/* =========================================================
+   PANTALLA COMPLETA (y celular acostado): sin marco
+   ========================================================= */
+.lector {
+  .nota-op { margin: 6px 0 0; font-size: 12px; line-height: 1.4; color: var(--texto-2); }
+
+  &.completo {
+    background: var(--hoja);
+    .escenario { padding: 0; }
+    /* fuera la sombra, los cantos de hojas y las puntas redondeadas: solo queda la página */
+    .libro::before, .canto { display: none; }
+    .pagina { border-radius: 0; }
+    /* la sombra del lomo, más suave */
+    .pagina.izq::after { background: linear-gradient(to left, var(--lomo), transparent 6%); }
+    .pagina.der::after { background: linear-gradient(to right, var(--lomo), transparent 6%); }
+    .zoom-pdf { background: var(--hoja); }
+  }
+}

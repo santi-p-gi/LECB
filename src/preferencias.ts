@@ -16,6 +16,7 @@ export interface Preferencias {
   animacion: Animacion;
   voz: string | null; // voz elegida para leer en voz alta (null = la que elija el dispositivo)
   velocidadVoz: number;
+  completa: boolean; // pantalla completa: sin marco ni barras fijas
 }
 
 export const TAMANOS = [15, 16, 17, 18, 20, 22, 24];
@@ -60,6 +61,7 @@ export function cargarPreferencias(): Preferencias {
     animacion: 'normal',
     voz: null,
     velocidadVoz: 1,
+    completa: false,
   };
   try {
     return { ...base, ...JSON.parse(localStorage.getItem(CLAVE) || '{}') };

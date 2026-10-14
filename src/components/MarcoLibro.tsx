@@ -4,20 +4,48 @@ import {
   type Animacion,
   type Fuente, type Preferencias, type Tema,
 } from '../preferencias';
+import { useEffect, useRef } from 'react';
 import { AnimacionIcono, Interlineado } from './Iconos';
+import { contarEvento } from '../estadisticas';
 
 /* ---------- medidas del libro según la pantalla (igual que la maqueta) ---------- */
 export interface Medidas {
   doble: boolean;
+  completo: boolean; // pantalla completa: sin marco, el libro ocupa toda la pantalla
   pw: number; ph: number; // ancho y alto de cada página
   mo: number; mi: number; // margen exterior e interior
   mt: number; mb: number; // margen superior e inferior
   cw: number; ch: number; // ancho y alto del texto
 }
 
-export function medidas(doblePref: boolean): Medidas {
+// Pantalla completa: si el lector la pidió o, sola, con el celular acostado (ahí no hay alto
+// para el marco y las barras).
+export function modoCompleto(completaPref: boolean) {
+  return completaPref || (window.innerHeight < 500 && window.innerWidth > window.innerHeight);
+}
+
+// Doble página: en pantallas anchas o, en pantalla completa, con la pantalla acostada.
+export function dobleDisponible(completo: boolean) {
   const vw = window.innerWidth, vh = window.innerHeight;
-  const doble = doblePref && vw >= 820;
+  return vw >= 820 || (completo && vw > vh && vw >= 560);
+}
+
+// En pantalla completa el ancho del renglón tiene un tope: renglones muy largos cansan.
+const TEXTO_MAX = 620;
+
+export function medidas(doblePref: boolean, completo = false): Medidas {
+  const vw = window.innerWidth, vh = window.innerHeight;
+  if (completo) {
+    const doble = doblePref && dobleDisponible(true);
+    const pw = doble ? Math.floor(vw / 2) : vw, ph = vh;
+    const lado = Math.min(40, Math.max(16, Math.round(pw * 0.06)));
+    const mt = Math.min(44, Math.max(26, Math.round(ph * 0.05))), mb = mt;
+    // En doble página el texto queda cerca del lomo y lo que sobra va hacia afuera.
+    const mi = doble ? lado : Math.max(lado, Math.round((pw - TEXTO_MAX) / 2));
+    const mo = doble ? Math.max(lado, pw - mi - TEXTO_MAX) : mi;
+    return { doble, completo, pw, ph, mo, mi, mt, mb, cw: pw - mo - mi, ch: ph - mt - mb };
+  }
+  const doble = doblePref && dobleDisponible(false);
   const alto = vh - (vw < 600 ? 116 : 140);
   let pw: number, ph: number;
   if (doble) {
@@ -31,7 +59,7 @@ export function medidas(doblePref: boolean): Medidas {
   }
   const mo = Math.round(pw * (doble ? 0.12 : 0.09)), mi = Math.round(pw * 0.09);
   const mt = Math.round(ph * 0.085), mb = Math.round(ph * 0.085);
-  return { doble, pw, ph, mo, mi, mt, mb, cw: pw - mo - mi, ch: ph - mt - mb };
+  return { doble, completo, pw, ph, mo, mi, mt, mb, cw: pw - mo - mi, ch: ph - mt - mb };
 }
 
 export const mismasMedidas = (a: Medidas, b: Medidas) =>
@@ -39,20 +67,59 @@ export const mismasMedidas = (a: Medidas, b: Medidas) =>
 
 // Medidas para PDF: la página respeta la forma del PDF (A4, carta…) y los márgenes son
 // chicos, porque el PDF ya trae los suyos. Abajo queda lugar para el número de página.
-export function medidasPdf(doblePref: boolean, proporcion: number): Medidas {
+export function medidasPdf(doblePref: boolean, proporcion: number, completo = false): Medidas {
   const vw = window.innerWidth, vh = window.innerHeight;
-  const doble = doblePref && vw >= 820;
-  const chico = vw < 600;
-  const alto = Math.min(vh - (chico ? 116 : 140), 1000);
-  const anchoMax = doble ? Math.floor((vw - 120) / 2) : Math.min(vw - 24, 900);
-  const m = chico ? 8 : 14, mb = chico ? 26 : 32;
+  // En el celular acostado no ponemos dos hojas de PDF: quedarían diminutas.
+  const doble = doblePref && vw >= 820 && vh >= 500;
+  const chico = vw < 600 || vh < 500;
+  const alto = completo ? vh : Math.min(vh - (chico ? 116 : 140), 1000);
+  const anchoMax = completo
+    ? (doble ? Math.floor(vw / 2) : vw)
+    : (doble ? Math.floor((vw - 120) / 2) : Math.min(vw - 24, 900));
+  const m = completo ? 6 : chico ? 8 : 14, mb = chico ? 24 : 32;
   let ch = alto - m - mb;
   let cw = Math.round(ch * proporcion);
   if (cw > anchoMax - 2 * m) {
     cw = anchoMax - 2 * m;
     ch = Math.round(cw / proporcion);
   }
-  return { doble, pw: cw + 2 * m, ph: ch + m + mb, mo: m, mi: m, mt: m, mb, cw, ch };
+  return { doble, completo, pw: cw + 2 * m, ph: ch + m + mb, mo: m, mi: m, mt: m, mb, cw, ch };
+}
+
+/* ---------- pantalla completa del navegador ---------- */
+// Esconde la barra de direcciones y la del sistema. No existe en el iPhone (ahí solo cambia el
+// diseño, y si LECB está instalada ya no hay barra de direcciones).
+export function pedirPantallaCompleta() {
+  if (!document.fullscreenElement && document.fullscreenEnabled) {
+    document.documentElement.requestFullscreen?.().catch(() => {});
+  }
+}
+
+export function salirPantallaCompleta() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+}
+
+// Si el lector sale de la pantalla completa por su cuenta (Escape, botón atrás), se apaga la
+// opción. Al cerrar el libro se sale de la pantalla completa, pero la opción queda guardada
+// y se retoma con el primer toque la próxima vez.
+export function useSalidaPantallaCompleta(alSalir: () => void) {
+  const avisar = useRef(alSalir);
+  avisar.current = alSalir;
+  useEffect(() => {
+    let estaba = !!document.fullscreenElement;
+    const alCambiar = () => {
+      if (document.fullscreenElement) estaba = true;
+      else if (estaba) {
+        estaba = false;
+        avisar.current();
+      }
+    };
+    document.addEventListener('fullscreenchange', alCambiar);
+    return () => {
+      document.removeEventListener('fullscreenchange', alCambiar);
+      salirPantallaCompleta();
+    };
+  }, []);
 }
 
 export function Pagina({ lado, cabecera, folio }: { lado: 'izq' | 'der' | 'unica'; cabecera: string; folio: number | null }) {
@@ -66,7 +133,10 @@ export function Pagina({ lado, cabecera, folio }: { lado: 'izq' | 'der' | 'unica
 
 // soloTema: para PDF, donde la tipografía no se puede cambiar.
 export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false, onVerGuia }: { abierto: boolean; prefs: Preferencias; onCambiar: (c: Partial<Preferencias>) => void; soloTema?: boolean; onVerGuia?: () => void }) {
-  const dobleDisponible = window.innerWidth >= 820;
+  // (en PDF, con el celular acostado no hay doble página: las hojas quedarían diminutas)
+  const hayDoble = soloTema
+    ? window.innerWidth >= 820 && window.innerHeight >= 500
+    : dobleDisponible(modoCompleto(prefs.completa));
   return (
     <aside className={`panel ${abierto ? 'abierto' : ''}`} aria-label="Ajustes de lectura" aria-hidden={!abierto}>
       <div className="grupo">
@@ -147,11 +217,32 @@ export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false, onVe
           Doble página
           <input
             type="checkbox"
-            checked={prefs.doble && dobleDisponible}
-            disabled={!dobleDisponible}
+            checked={prefs.doble && hayDoble}
+            disabled={!hayDoble}
             onChange={(e) => onCambiar({ doble: e.target.checked })}
           />
         </label>
+        {!hayDoble && window.innerWidth < 820 && (
+          <p className="nota-op">Acostá el celular para leer a doble página.</p>
+        )}
+      </div>
+      <div className="grupo">
+        <label className="interruptor">
+          Pantalla completa
+          <input
+            type="checkbox"
+            checked={prefs.completa}
+            onChange={(e) => {
+              const activar = e.target.checked;
+              if (activar) {
+                pedirPantallaCompleta();
+                contarEvento('pantalla-completa');
+              } else salirPantallaCompleta();
+              onCambiar({ completa: activar });
+            }}
+          />
+        </label>
+        <p className="nota-op">Sin marco ni barras: el libro ocupa toda la pantalla. Tocá el centro para ver los botones.</p>
       </div>
       {onVerGuia && (
         <button className="ver-guia" onClick={onVerGuia}>

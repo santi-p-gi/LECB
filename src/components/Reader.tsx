@@ -14,7 +14,10 @@ import {
 import { Altavoz, Cerrar, Cinta, Lista, Lupa, Volver } from './Iconos';
 import { BarraVoz, useLecturaEnVoz } from './LecturaVoz';
 import { vozDisponible } from '../voz';
-import { animarFundido, animarHoja, medidas, mismasMedidas, Pagina, PanelAjustes, type Medidas } from './MarcoLibro';
+import {
+  animarFundido, animarHoja, medidas, mismasMedidas, modoCompleto, Pagina, PanelAjustes, pedirPantallaCompleta,
+  useSalidaPantallaCompleta, type Medidas,
+} from './MarcoLibro';
 import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
 import { buscarEnLibro, normalizar, type Resultado } from '../busqueda';
 import './Reader.css';
@@ -174,7 +177,7 @@ const numeroPagina = (book: Book, cfi: string) => Number(book.locations.location
 export default function Reader({ bookId, onClose }: ReaderProps) {
   // useState: datos que redibujan la pantalla al cambiar.
   const [prefs, setPrefs] = useState(cargarPreferencias);
-  const [L, setL] = useState(() => medidas(prefs.doble));
+  const [L, setL] = useState(() => medidas(prefs.doble, modoCompleto(prefs.completa)));
   const [meta, setMeta] = useState<BookMeta | null>(null);
   const [listo, setListo] = useState(false); // el libro está abierto
   const [mostrando, setMostrando] = useState(false); // ya se ve la primera página
@@ -286,7 +289,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   /* ---------- 2. Recalcular medidas al cambiar el tamaño de la ventana ---------- */
   useEffect(() => {
     const recalcular = () => setL((prev) => {
-      const nuevo = medidas(prefs.doble);
+      const nuevo = medidas(prefs.doble, modoCompleto(prefs.completa));
       return mismasMedidas(prev, nuevo) ? prev : nuevo;
     });
     recalcular();
@@ -300,7 +303,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
       clearTimeout(reloj);
       window.removeEventListener('resize', alCambiar);
     };
-  }, [prefs.doble]);
+  }, [prefs.doble, prefs.completa]);
 
   /* ---------- 3. Mostrar el libro (se rehace al cambiar medidas o tipografía) ---------- */
   // Las funciones de eventos cambian en cada dibujo; epub.js siempre llama a la última versión.
@@ -407,6 +410,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   }, [prefs.tema]);
 
   useEffect(() => guardarPreferencias(prefs), [prefs]);
+  useSalidaPantallaCompleta(() => setPrefs((p) => ({ ...p, completa: false })));
 
   // La primera vez que se abre un libro (en este navegador) se muestra la guía rápida.
   const [guia, setGuia] = useState(false);
@@ -461,6 +465,8 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
 
   // Clic o toque sobre el libro: izquierda = atrás, derecha = adelante, centro = mostrar/ocultar barras.
   function tocarEn(x: number) {
+    // La pantalla completa del navegador se pierde al cerrar el libro: se retoma con el primer toque.
+    if (prefs.completa) pedirPantallaCompleta();
     if (deslizo.current) {
       deslizo.current = false;
       return;
@@ -891,7 +897,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   const valorBarra = arrastre ?? (pagIni ? pagIni - 1 : 0);
 
   return (
-    <div className={`lector ${inmersivo ? 'inmersivo' : ''}`} data-tema={prefs.tema} onMouseMove={despertar}>
+    <div className={`lector ${inmersivo ? 'inmersivo' : ''} ${L.completo ? 'completo' : ''}`} data-tema={prefs.tema} onMouseMove={despertar}>
       <header className="barra barra-sup">
         <button className="btn-l" onClick={onClose} aria-label="Volver a la biblioteca">
           <Volver />
