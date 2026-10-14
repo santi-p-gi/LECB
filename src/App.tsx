@@ -95,6 +95,7 @@ export default function App() {
           bookmarks: [],
           highlights: [],
           colecciones: [],
+          modoTexto: false,
           ...extra,
         },
         archivo,

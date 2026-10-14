@@ -588,3 +588,27 @@
     .zoom-pdf { background: var(--hoja); }
   }
 }
+
+/* Enlaces del PDF: zonas tocables (invisibles) encima del dibujo */
+.lector .enlace-pdf {
+  position: absolute; z-index: 3; display: block; padding: 0; border: 0; background: none;
+  cursor: pointer; border-radius: 2px; pointer-events: auto;
+}
+.lector .enlace-pdf:hover { background: color-mix(in srgb, var(--acento) 14%, transparent); }
+
+/* =========================================================
+   PDF: MODO TEXTO
+   ========================================================= */
+.lector {
+  .texto-pdf { position: absolute; overflow: hidden; color: var(--texto); }
+  .texto-pdf-columnas {
+    column-fill: auto; text-align: justify; hyphens: auto; -webkit-hyphens: auto;
+    widows: 2; orphans: 2; overflow-wrap: break-word;
+  }
+  .texto-pdf-columnas p { margin: 0 0 .7em; text-wrap: pretty; }
+  .texto-pdf-columnas h3 {
+    font: 400 1.25em/1.3 var(--f-display); text-align: center; text-wrap: balance;
+    margin: .4em 0 .8em; break-after: avoid;
+  }
+  .texto-pdf-columnas .texto-pdf-vacio { font-style: italic; color: var(--texto-2); text-align: left; }
+}

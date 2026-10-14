@@ -132,9 +132,19 @@ export function Pagina({ lado, cabecera, folio }: { lado: 'izq' | 'der' | 'unica
 }
 
 // soloTema: para PDF, donde la tipografía no se puede cambiar.
-export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false, onVerGuia }: { abierto: boolean; prefs: Preferencias; onCambiar: (c: Partial<Preferencias>) => void; soloTema?: boolean; onVerGuia?: () => void }) {
+// vistaPdf: en PDF, elegir entre la página original y el modo texto (ahí sí hay tipografía).
+interface PanelAjustesProps {
+  abierto: boolean;
+  prefs: Preferencias;
+  onCambiar: (c: Partial<Preferencias>) => void;
+  soloTema?: boolean;
+  onVerGuia?: () => void;
+  vistaPdf?: { texto: boolean; onCambiar: (texto: boolean) => void };
+}
+
+export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false, onVerGuia, vistaPdf }: PanelAjustesProps) {
   // (en PDF, con el celular acostado no hay doble página: las hojas quedarían diminutas)
-  const hayDoble = soloTema
+  const hayDoble = vistaPdf && !vistaPdf.texto
     ? window.innerWidth >= 820 && window.innerHeight >= 500
     : dobleDisponible(modoCompleto(prefs.completa));
   return (
@@ -150,6 +160,26 @@ export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false, onVe
           ))}
         </div>
       </div>
+      {vistaPdf && (
+        <div className="grupo">
+          <p className="grupo-tit">Vista</p>
+          <div className="opciones">
+            <button className="op" aria-pressed={!vistaPdf.texto} onClick={() => vistaPdf.onCambiar(false)}>
+              <b>▢</b>
+              Página original
+            </button>
+            <button className="op" aria-pressed={vistaPdf.texto} onClick={() => vistaPdf.onCambiar(true)}>
+              <b>¶</b>
+              Modo texto
+            </button>
+          </div>
+          <p className="nota-op">
+            {vistaPdf.texto
+              ? 'El texto se acomoda a tu pantalla. Fórmulas, tablas e imágenes no se ven: para eso, volvé a la página original.'
+              : 'Modo texto: para PDF de texto corrido. Lo acomoda a tu pantalla, con tu letra y tamaño.'}
+          </p>
+        </div>
+      )}
       {!soloTema && (
         <>
           <div className="grupo">
@@ -193,12 +223,12 @@ export function PanelAjustes({ abierto, prefs, onCambiar, soloTema = false, onVe
               ))}
             </div>
           </div>
-          <div className="grupo">
+          {!vistaPdf && <div className="grupo">
             <label className="interruptor">
               Notas al costado del libro
               <input type="checkbox" checked={prefs.notasMargen} onChange={(e) => onCambiar({ notasMargen: e.target.checked })} />
             </label>
-          </div>
+          </div>}
         </>
       )}
       <div className="grupo">

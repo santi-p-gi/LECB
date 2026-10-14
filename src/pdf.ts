@@ -25,7 +25,7 @@ export const esPdfConClave = (err: unknown) => (err as { name?: string } | null)
 // Muchos PDF traen como título algo como "Microsoft Word - apuntes.docx": en ese caso usamos el nombre del archivo.
 function tituloUtil(titulo: string | undefined) {
   const t = titulo?.trim();
-  if (!t || /^(microsoft (word|powerpoint)|untitled|sin título)|\.(docx?|pptx?|odt|pdf)$/i.test(t)) return null;
+  if (!t || /^(microsoft (word|powerpoint)|untitled|sin título|about:blank)|\.(docx?|pptx?|odt|pdf)$/i.test(t)) return null;
   return t;
 }
 
@@ -92,6 +92,30 @@ export async function indicePdf(pdf: DocumentoPdf): Promise<EntradaIndicePdf[]> 
   if (outline) await recorrer(outline, 0);
   return resultado;
 }
+
+/* ---------- enlaces de cada página ---------- */
+
+export interface EnlacePdf {
+  rect: number[]; // [x1, y1, x2, y2] en unidades del PDF (origen abajo a la izquierda)
+  url: string | null; // enlace a internet
+  destino: unknown; // o a otra parte del mismo PDF
+}
+
+export async function enlacesDePagina(pdf: DocumentoPdf, indice: number): Promise<EnlacePdf[]> {
+  const anotaciones = (await (await pdf.getPage(indice + 1)).getAnnotations({ intent: 'display' })) as {
+    subtype: string; rect: number[]; url?: string; unsafeUrl?: string; dest?: unknown;
+  }[];
+  return anotaciones
+    .filter((a) => a.subtype === 'Link' && (a.url || a.unsafeUrl || a.dest))
+    .map((a) => {
+      const url = a.url ?? a.unsafeUrl ?? null;
+      // Solo enlaces web o de correo (nada de "javascript:" ni archivos locales).
+      return { rect: a.rect, url: url && /^(https?:|mailto:)/i.test(url) ? url : null, destino: a.dest ?? null };
+    })
+    .filter((e) => e.url || e.destino);
+}
+
+export const paginaDeEnlace = paginaDeDestino;
 
 /* ---------- texto de cada página y búsqueda ---------- */
 
@@ -208,6 +232,107 @@ export async function buscarEnPdf(
     if (total >= MAX_RESULTADOS) return 'limite';
   }
   return 'lista';
+}
+
+/* ---------- modo texto: la página convertida en párrafos ---------- */
+
+// El PDF no guarda párrafos: solo pedacitos de texto con su posición en la hoja. Acá se
+// "adivinan": se arman los renglones, se juntan en párrafos y se marcan los títulos (letra
+// más grande). Anda bien con texto corrido; con tablas o fórmulas el resultado es pobre.
+export interface Parrafo {
+  titulo: boolean;
+  texto: string;
+}
+
+interface Renglon { texto: string; x: number; derecha: number; y: number; alto: number }
+
+const mediana = (v: number[]) => {
+  const o = [...v].sort((a, b) => a - b);
+  return o[Math.floor(o.length / 2)] ?? 0;
+};
+
+export async function parrafosDePagina(pdf: DocumentoPdf, indice: number): Promise<Parrafo[]> {
+  const { items } = await textoDePagina(pdf, indice);
+
+  // 1. Renglones: termina uno cuando pdf.js lo marca (hasEOL) o cuando el texto cambia de altura.
+  const renglones: Renglon[] = [];
+  let actual: Renglon | null = null;
+  for (const it of items) {
+    const [, , c, d, x, y] = it.transform;
+    const alto = it.height || Math.hypot(c, d) || 10;
+    if (actual && Math.abs(y - actual.y) > Math.min(alto, actual.alto) * 0.6 && it.str.trim()) {
+      renglones.push(actual);
+      actual = null;
+    }
+    if (!actual) actual = { texto: '', x, derecha: x, y, alto };
+    if (it.str) {
+      // Algunos PDF no traen los espacios: si hay un hueco entre dos pedazos, va uno.
+      const hueco = x - actual.derecha > alto * 0.15;
+      if (actual.texto && hueco && !/\s$/.test(actual.texto) && !/^\s/.test(it.str)) actual.texto += ' ';
+      actual.texto += it.str;
+      actual.x = Math.min(actual.x, x);
+      actual.derecha = Math.max(actual.derecha, x + it.width);
+      if (it.str.trim()) actual.alto = Math.max(actual.alto, alto);
+    }
+    if (it.hasEOL) {
+      renglones.push(actual);
+      actual = null;
+    }
+  }
+  if (actual) renglones.push(actual);
+
+  const utiles = renglones
+    .map((r) => ({ ...r, texto: r.texto.replace(/\s+/g, ' ').trim() }))
+    .filter((r) => r.texto)
+    // Números de página sueltos arriba o abajo de la hoja.
+    .filter((r, i, todos) => !(/^\d{1,4}$/.test(r.texto) && (i === 0 || i === todos.length - 1)));
+  if (!utiles.length) return [];
+
+  // 2. Medidas típicas de la página: tamaño de letra y márgenes del texto común.
+  const altoTipico = mediana(utiles.map((r) => r.alto));
+  const comunes = utiles.filter((r) => Math.abs(r.alto - altoTipico) < altoTipico * 0.15);
+  const izq = mediana(comunes.map((r) => r.x));
+  const der = mediana(comunes.map((r) => r.derecha).sort((a, b) => b - a).slice(0, Math.ceil(comunes.length / 2)));
+  const ancho = Math.max(1, der - izq);
+
+  // 3. Párrafos.
+  const parrafos: Parrafo[] = [];
+  let p: Parrafo | null = null;
+  let anterior: Renglon | null = null;
+  for (const r of utiles) {
+    const titulo = r.alto > altoTipico * 1.18;
+    let nuevo = !p || !anterior || titulo !== p.titulo;
+    if (!nuevo && p && anterior) {
+      const salto = anterior.y - r.y; // el PDF mide desde abajo: bajar un renglón resta
+      nuevo =
+        salto > Math.max(anterior.alto, r.alto) * 1.8 || // espacio grande entre renglones
+        salto < -r.alto || // subió: otra columna u otro bloque
+        (r.x > izq + altoTipico * 0.8 && r.x > anterior.x + altoTipico * 0.8) || // sangría
+        /^([•▪◦●■\-–—]|\d{1,2}[.)]|[a-z][)])\s/.test(r.texto) || // viñetas y listas
+        (anterior.derecha < der - ancho * 0.15 && /[.:!?»"”)]$/.test(anterior.texto)); // renglón corto que cierra oración
+    }
+    if (nuevo || !p) {
+      p = { titulo, texto: r.texto };
+      parrafos.push(p);
+    } else if (/[a-záéíóúñü]-$/i.test(p.texto) && /^[a-záéíóúñü]/.test(r.texto)) {
+      p.texto = p.texto.slice(0, -1) + r.texto; // palabra cortada con guion al final del renglón
+    } else {
+      p.texto += ' ' + r.texto;
+    }
+    anterior = r;
+  }
+  return parrafos;
+}
+
+// Idioma aproximado del texto (para cortar bien las palabras con guion al justificar).
+export function idiomaDe(parrafos: Parrafo[]) {
+  const texto = ` ${parrafos.map((p) => p.texto).join(' ').slice(0, 4000).toLowerCase()} `;
+  const contar = (palabras: string[]) => palabras.reduce((n, w) => n + texto.split(` ${w} `).length - 1, 0);
+  const es = contar(['de', 'la', 'que', 'el', 'en', 'los', 'del', 'las', 'por', 'una']);
+  const en = contar(['the', 'of', 'and', 'to', 'is', 'that', 'with', 'for', 'this', 'are']);
+  const pt = contar(['não', 'uma', 'com', 'os', 'do', 'da', 'ao', 'são']);
+  if (pt > es && pt > en) return 'pt';
+  return en > es ? 'en' : 'es';
 }
 
 // Comienzo del texto de una página, para "Te quedaste en…".

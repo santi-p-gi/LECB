@@ -346,13 +346,27 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
       colores.id = 'lecb-colores';
       colores.textContent = cssColores(temaActual.current);
       doc.head.append(tipo, colores);
+      // Las barras aparecen al mover el mouse de verdad. En el celular, cada toque también
+      // genera un "movimiento de mouse" falso: ese no cuenta (si no, aparecían al pasar página).
+      doc.addEventListener('pointermove', (e) => {
+        if (e.pointerType === 'mouse') eventos.current.despertar();
+      });
+      // Los enlaces a internet se abren en otra pestaña. El libro está aislado (sandbox) y no
+      // puede abrir ventanas por su cuenta, así que las abre LECB.
+      doc.addEventListener('click', (e) => {
+        const enlace = (e.target as Element | null)?.closest?.('a[href]');
+        const href = enlace?.getAttribute('href') ?? '';
+        if (!/^(https?:|mailto:)/i.test(href)) return;
+        e.preventDefault();
+        e.stopPropagation(); // que no cuente como toque para pasar de página
+        window.open(href, '_blank', 'noopener,noreferrer');
+      }, true);
       return contents.addStylesheet(URL_FUENTES);
     });
 
     rendition.on('relocated', (l: unknown) => eventos.current.alReubicar(l));
     rendition.on('keydown', (e: KeyboardEvent) => eventos.current.alTeclear(e));
     rendition.on('click', (e: MouseEvent) => eventos.current.alClic(e));
-    rendition.on('mousemove', () => eventos.current.despertar());
     rendition.on('touchstart', (e: TouchEvent) => eventos.current.alTocar(e));
     rendition.on('touchend', (e: TouchEvent) => eventos.current.alSoltar(e));
     rendition.on('selected', (cfi: string, contents: { window: Window }) => eventos.current.alSeleccionar(cfi, contents));
@@ -897,7 +911,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   const valorBarra = arrastre ?? (pagIni ? pagIni - 1 : 0);
 
   return (
-    <div className={`lector ${inmersivo ? 'inmersivo' : ''} ${L.completo ? 'completo' : ''}`} data-tema={prefs.tema} onMouseMove={despertar}>
+    <div className={`lector ${inmersivo ? 'inmersivo' : ''} ${L.completo ? 'completo' : ''}`} data-tema={prefs.tema} onPointerMove={(e) => e.pointerType === 'mouse' && despertar()}>
       <header className="barra barra-sup">
         <button className="btn-l" onClick={onClose} aria-label="Volver a la biblioteca">
           <Volver />

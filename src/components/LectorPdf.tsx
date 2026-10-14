@@ -4,14 +4,14 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperti
 import { getBook, getBookFile, updateBook, type BookMeta, type ColorSubrayado, type Marcador, type Subrayado } from '../db';
 import { COLORES_SUBRAYADO, descargarSubrayados } from '../subrayados';
 import { EditorNota, ListaSubrayados, MenuSubrayado, type PosicionMenu } from './Subrayados';
-import { cargarPreferencias, guardarPreferencias, type Tema } from '../preferencias';
+import { cargarPreferencias, FUENTES, guardarPreferencias, TAMANOS, type Preferencias, type Tema } from '../preferencias';
 import {
-  abrirPdf, buscarEnPdf, CapaTexto, cerrarPdf, fraseDePagina, indicePdf,
-  type DocumentoPdf, type EntradaIndicePdf, type ResultadoPdf,
+  abrirPdf, buscarEnPdf, CapaTexto, cerrarPdf, enlacesDePagina, fraseDePagina, idiomaDe, indicePdf, paginaDeEnlace, parrafosDePagina,
+  type DocumentoPdf, type EnlacePdf, type Parrafo, type EntradaIndicePdf, type ResultadoPdf,
 } from '../pdf';
 import { normalizar } from '../busqueda';
 import {
-  animarFundido, animarHoja, medidasPdf, mismasMedidas, modoCompleto, Pagina, PanelAjustes, pedirPantallaCompleta,
+  animarFundido, animarHoja, medidas, medidasPdf, mismasMedidas, type Medidas, modoCompleto, Pagina, PanelAjustes, pedirPantallaCompleta,
   useSalidaPantallaCompleta,
 } from './MarcoLibro';
 import PanelBusqueda, { type EstadoBusqueda, type ResultadoMostrado } from './Busqueda';
@@ -68,9 +68,10 @@ interface PaginaPdfProps {
   subrayados: Subrayado[]; // los de esta página
   onTocarSubrayado: (id: string, rect: DOMRect) => void;
   onDibujada?: () => void;
+  onIrAPagina: (pagina: number) => void; // enlaces internos del PDF ("ver página 12")
 }
 
-function PaginaPdf({ pdf, indice, left, top, ancho, alto, proporcion, tema, resaltes, subrayados, onTocarSubrayado, onDibujada }: PaginaPdfProps) {
+function PaginaPdf({ pdf, indice, left, top, ancho, alto, proporcion, tema, resaltes, subrayados, onTocarSubrayado, onDibujada, onIrAPagina }: PaginaPdfProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const capaRef = useRef<HTMLDivElement>(null);
   const lienzoRef = useRef<HTMLDivElement>(null);
@@ -79,6 +80,17 @@ function PaginaPdf({ pdf, indice, left, top, ancho, alto, proporcion, tema, resa
   const yaDibujada = useRef(false);
   const avisar = useRef(onDibujada);
   avisar.current = onDibujada;
+  const [enlaces, setEnlaces] = useState<EnlacePdf[]>([]);
+
+  useEffect(() => {
+    let cancelado = false;
+    enlacesDePagina(pdf, indice)
+      .then((e) => !cancelado && setEnlaces(e))
+      .catch(() => {});
+    return () => {
+      cancelado = true;
+    };
+  }, [pdf, indice]);
 
   useEffect(() => {
     let cancelado = false;
@@ -197,7 +209,114 @@ function PaginaPdf({ pdf, indice, left, top, ancho, alto, proporcion, tema, resa
                 }}
               />
             ))}
+          {vista &&
+            enlaces.map((e, i) => {
+              const [x1, y1, x2, y2] = e.rect;
+              const estilo = {
+                left: Math.min(x1, x2) * vista.escala,
+                top: (altoPdf - Math.max(y1, y2)) * vista.escala,
+                width: Math.abs(x2 - x1) * vista.escala,
+                height: Math.abs(y2 - y1) * vista.escala,
+              };
+              return e.url ? (
+                <a
+                  key={i}
+                  className="enlace-pdf"
+                  href={e.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={e.url}
+                  style={estilo}
+                  onClick={(ev) => ev.stopPropagation()}
+                />
+              ) : (
+                <button
+                  key={i}
+                  className="enlace-pdf"
+                  aria-label="Ir a otra parte del documento"
+                  style={estilo}
+                  onClick={(ev) => {
+                    ev.stopPropagation();
+                    paginaDeEnlace(pdf, e.destino).then((p) => p !== null && onIrAPagina(p));
+                  }}
+                />
+              );
+            })}
         </div>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- modo texto: la página del PDF como texto que se acomoda ---------- */
+
+// El texto de una página del PDF se reparte en columnas del tamaño de la hoja; si no entra,
+// sigue en "partes" (como las páginas de un EPUB) que se recorren antes de pasar a la siguiente.
+interface TextoPdfProps {
+  pdf: DocumentoPdf;
+  indice: number;
+  L: Medidas;
+  prefs: Preferencias;
+  parte: number;
+  onPartes: (cantidad: number) => void;
+}
+
+function TextoPdf({ pdf, indice, L, prefs, parte, onPartes }: TextoPdfProps) {
+  const [parrafos, setParrafos] = useState<{ indice: number; lista: Parrafo[] } | null>(null);
+  const columnasRef = useRef<HTMLDivElement>(null);
+  const avisar = useRef(onPartes);
+  avisar.current = onPartes;
+
+  useEffect(() => {
+    let cancelado = false;
+    parrafosDePagina(pdf, indice)
+      .then((lista) => !cancelado && setParrafos({ indice, lista }))
+      .catch(() => !cancelado && setParrafos({ indice, lista: [] }));
+    return () => {
+      cancelado = true;
+    };
+  }, [pdf, indice]);
+
+  const gap = 2 * L.mi;
+  const columnas = L.doble ? 2 : 1;
+  const ancho = columnas * L.cw + (columnas - 1) * gap;
+  const lista = parrafos?.indice === indice ? parrafos.lista : null;
+
+  // Cuántas partes ocupa el texto (se vuelve a medir al cambiar la letra o el tamaño).
+  useLayoutEffect(() => {
+    const el = columnasRef.current;
+    if (!el || !lista) return;
+    const medir = () => {
+      const cols = Math.max(1, Math.round((el.scrollWidth + gap) / (L.cw + gap)));
+      avisar.current(Math.ceil(cols / columnas));
+    };
+    medir();
+    let vigente = true;
+    document.fonts?.ready.then(() => vigente && medir());
+    return () => {
+      vigente = false;
+    };
+  }, [lista, L, gap, columnas, prefs.fuente, prefs.tam, prefs.lh]);
+
+  return (
+    <div className="texto-pdf" style={{ left: L.mo, top: L.mt, width: ancho, height: L.ch }}>
+      <div
+        className="texto-pdf-columnas"
+        ref={columnasRef}
+        lang={lista ? idiomaDe(lista) : undefined}
+        style={{
+          width: ancho, height: L.ch, columnCount: columnas, columnGap: gap,
+          transform: `translateX(${-parte * (ancho + gap)}px)`,
+          fontFamily: FUENTES[prefs.fuente].css, fontSize: TAMANOS[prefs.tam], lineHeight: prefs.lh,
+        }}
+      >
+        {lista?.length === 0 && (
+          <p className="texto-pdf-vacio">
+            Esta página no tiene texto para mostrar (puede ser una imagen o una página escaneada). Para verla,
+            elegí <b>Página original</b> en Aa.
+          </p>
+        )}
+        {lista?.map((p, i) => (p.titulo ? <h3 key={i}>{p.texto}</h3> : <p key={i}>{p.texto}</p>))}
       </div>
     </div>
   );
@@ -234,6 +353,11 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   // Zoom (pellizcar): una sola página agrandada que se recorre arrastrando. null = página entera.
   const [zoom, setZoom] = useState<{ z: number; pagina: number } | null>(null);
   const [zoomListo, setZoomListo] = useState(false); // la página agrandada ya se dibujó
+  // Modo texto: la página se lee como texto que se acomoda a la pantalla (se guarda por libro).
+  const [modoTexto, setModoTexto] = useState(false);
+  const [parte, setParte] = useState(0); // en modo texto, qué parte de la página se ve
+  const [partes, setPartes] = useState(1);
+  const alFinalDeLaPagina = useRef(false); // al volver hacia atrás se entra por la última parte
 
   const libroRef = useRef<HTMLDivElement>(null);
   const contenidoRef = useRef<HTMLDivElement>(null);
@@ -250,9 +374,10 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   const ultimoToque = useRef<{ t: number; x: number; y: number } | null>(null);
 
   const total = pdf?.numPages ?? 0;
-  // En doble página se muestran de a pares (1–2, 3–4…).
-  const inicio = L.doble ? actual - (actual % 2) : actual;
-  const visibles = (L.doble ? [inicio, inicio + 1] : [inicio]).filter((p) => p < total);
+  // En doble página se muestran de a pares (1–2, 3–4…). En modo texto, de a una (repartida en las dos hojas).
+  const deAPares = L.doble && !modoTexto;
+  const inicio = deAPares ? actual - (actual % 2) : actual;
+  const visibles = (deAPares ? [inicio, inicio + 1] : [inicio]).filter((p) => p < total);
 
   /* ---------- abrir el PDF ---------- */
   useEffect(() => {
@@ -273,6 +398,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
       setMeta(m);
       setMarcadores(m.bookmarks);
       setSubrayados(m.highlights);
+      setModoTexto(m.modoTexto);
       setActual(Math.min(Math.max(0, Number(m.location) || 0), doc.numPages - 1));
       setPdf(doc);
       updateBook(bookId, { lastOpenedAt: Date.now() });
@@ -292,7 +418,9 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   /* ---------- medidas según la pantalla y la forma del PDF ---------- */
   useEffect(() => {
     const recalcular = () => setL((prev) => {
-      const nuevo = medidasPdf(prefs.doble, proporcion, modoCompleto(prefs.completa));
+      // En modo texto se usan las medidas de los EPUB (márgenes de libro); si no, las del PDF.
+      const completo = modoCompleto(prefs.completa);
+      const nuevo = modoTexto ? medidas(prefs.doble, completo) : medidasPdf(prefs.doble, proporcion, completo);
       return mismasMedidas(prev, nuevo) ? prev : nuevo;
     });
     recalcular();
@@ -306,7 +434,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
       clearTimeout(reloj);
       window.removeEventListener('resize', alCambiar);
     };
-  }, [prefs.doble, prefs.completa, proporcion]);
+  }, [prefs.doble, prefs.completa, proporcion, modoTexto]);
 
   useEffect(() => guardarPreferencias(prefs), [prefs]);
   useSalidaPantallaCompleta(() => setPrefs((p) => ({ ...p, completa: false })));
@@ -335,7 +463,14 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   /* ---------- navegación ---------- */
   function ir(dir: 1 | -1) {
     setZoom(null);
-    const nuevo = inicio + dir * (L.doble ? 2 : 1);
+    // Modo texto: primero se recorren las partes de la página.
+    if (modoTexto && parte + dir >= 0 && parte + dir < partes) {
+      animarHoja(libroRef.current, contenidoRef.current, L, dir, prefs.animacion);
+      setParte(parte + dir);
+      animarFundido(contenidoRef.current, dir, prefs.animacion);
+      return;
+    }
+    const nuevo = inicio + dir * (deAPares ? 2 : 1);
     if (nuevo < 0 || nuevo >= total) {
       libroRef.current?.animate(
         [{ transform: 'none' }, { transform: `translateX(${-dir * 8}px)` }, { transform: 'none' }],
@@ -344,12 +479,16 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
       return;
     }
     animarHoja(libroRef.current, contenidoRef.current, L, dir, prefs.animacion);
+    alFinalDeLaPagina.current = dir < 0;
+    setParte(0);
     setActual(nuevo);
     animarFundido(contenidoRef.current, dir, prefs.animacion);
   }
 
   function irAPagina(p: number) {
     setZoom(null);
+    alFinalDeLaPagina.current = false;
+    setParte(0);
     setActual(Math.min(Math.max(0, p), total - 1));
     setPanel(null);
   }
@@ -403,7 +542,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
     if (L.doble) ir(rel < 0.5 ? -1 : 1);
     else if (rel < 0.3) ir(-1);
     else if (rel > 0.7) ir(1);
-    else if (dobleToque) zoomEn(2.5, x, y);
+    else if (dobleToque && !modoTexto) zoomEn(2.5, x, y);
     else if (inmersivo) despertar();
     else setInmersivo(true);
   }
@@ -469,7 +608,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   });
   gestos.current = {
     empezar(e) {
-      if (e.touches.length !== 2 || !pdf || panel) return;
+      if (e.touches.length !== 2 || !pdf || panel || modoTexto) return;
       const { d, x, y } = dosDedos(e.touches);
       const p = paginaEn(x, y);
       const el = zoom ? zoomHojaRef.current : libroRef.current;
@@ -514,7 +653,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
       setZoom({ z: Math.min(z, ZOOM_MAX), pagina: p.indice });
     },
     rueda(e) {
-      if (!e.ctrlKey || !pdf || panel) return;
+      if (!e.ctrlKey || !pdf || panel || modoTexto) return;
       e.preventDefault();
       zoomEn((zoom?.z ?? 1) * Math.exp(-e.deltaY * 0.01), e.clientX, e.clientY);
     },
@@ -601,6 +740,26 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
     return cap;
   };
   const capitulo = capituloDe(ultimaVisible);
+
+  /* ---------- modo texto ---------- */
+  function cambiarVista(texto: boolean) {
+    if (texto === modoTexto) return;
+    setZoom(null);
+    setMenu(null);
+    setParte(0);
+    alFinalDeLaPagina.current = false;
+    setModoTexto(texto);
+    updateBook(bookId, { modoTexto: texto });
+    if (texto) contarEvento('modo-texto');
+  }
+
+  function alMedirPartes(n: number) {
+    setPartes(n);
+    if (alFinalDeLaPagina.current) {
+      alFinalDeLaPagina.current = false;
+      setParte(n - 1);
+    } else setParte((p) => Math.min(p, n - 1));
+  }
 
   /* ---------- marcadores (uno por página) ---------- */
   const marcada = marcadores.some((m) => visibles.includes(Number(m.cfi)));
@@ -755,13 +914,15 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
   } as CSSProperties;
   const infoPaginas = !total
     ? ''
+    : modoTexto && partes > 1
+      ? `Página ${inicio + 1} de ${total} · parte ${parte + 1} de ${partes}`
     : visibles.length > 1
       ? `Páginas ${visibles[0] + 1}–${visibles[1] + 1} de ${total}`
       : `Página ${inicio + 1} de ${total}`;
   const cajonAbierto = panel === 'indice' || panel === 'buscar';
 
   return (
-    <div className={`lector ${inmersivo ? 'inmersivo' : ''} ${L.completo ? 'completo' : ''}`} data-tema={prefs.tema} onMouseMove={despertar}>
+    <div className={`lector ${inmersivo ? 'inmersivo' : ''} ${L.completo ? 'completo' : ''}`} data-tema={prefs.tema} onPointerMove={(e) => e.pointerType === 'mouse' && despertar()}>
       <header className="barra barra-sup">
         <button className="btn-l" onClick={onClose} aria-label="Volver a la biblioteca">
           <Volver />
@@ -816,13 +977,16 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
             {L.doble ? (
               <>
                 <Pagina lado="izq" cabecera="" folio={pdf ? inicio + 1 : null} />
-                <Pagina lado="der" cabecera="" folio={visibles[1] !== undefined ? visibles[1] + 1 : null} />
+                <Pagina lado="der" cabecera="" folio={!modoTexto && visibles[1] !== undefined ? visibles[1] + 1 : null} />
               </>
             ) : (
               <Pagina lado="unica" cabecera="" folio={pdf ? inicio + 1 : null} />
             )}
             <div ref={contenidoRef} className="contenido-pdf">
-              {pdf &&
+              {pdf && modoTexto && (
+                <TextoPdf pdf={pdf} indice={inicio} L={L} prefs={prefs} parte={parte} onPartes={alMedirPartes} />
+              )}
+              {pdf && !modoTexto &&
                 visibles.map((p, i) => (
                   <PaginaPdf
                     key={i}
@@ -839,6 +1003,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
                     onTocarSubrayado={(id, r) =>
                       setMenu({ posicion: { x: r.left + r.width / 2, arriba: r.top, abajo: r.bottom }, id })
                     }
+                    onIrAPagina={irAPagina}
                   />
                 ))}
             </div>
@@ -864,6 +1029,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
                   setMenu({ posicion: { x: r.left + r.width / 2, arriba: r.top, abajo: r.bottom }, id })
                 }
                 onDibujada={() => setZoomListo(true)}
+                onIrAPagina={irAPagina}
               />
             </div>
           </div>
@@ -904,7 +1070,8 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
         abierto={panel === 'ajustes'}
         prefs={prefs}
         onCambiar={(c) => setPrefs({ ...prefs, ...c })}
-        soloTema
+        soloTema={!modoTexto}
+        vistaPdf={{ texto: modoTexto, onCambiar: cambiarVista }}
         onVerGuia={() => {
           setPanel(null);
           setGuia(true);

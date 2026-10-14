@@ -47,6 +47,7 @@ export interface BookMeta {
   bookmarks: Marcador[];
   highlights: Subrayado[];
   colecciones: string[]; // etiquetas de la estantería ("Facultad", "Novelas"…)
+  modoTexto: boolean; // solo PDF: se lee como texto (reacomodado) en vez de la página original
 }
 
 // Guardamos el archivo EPUB aparte para que listar la biblioteca sea liviano.
@@ -84,6 +85,7 @@ function completar(book: Partial<BookMeta> & { id: string; title: string }): Boo
     bookmarks: [],
     highlights: [],
     colecciones: [],
+    modoTexto: false,
     ...book,
   };
 }
