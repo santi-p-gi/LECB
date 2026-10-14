@@ -42,7 +42,7 @@ function pedirZona(): Promise<{ lat: number; lon: number } | null> {
     navigator.geolocation.getCurrentPosition(
       (p) => ok({ lat: Math.round(p.coords.latitude * 10) / 10, lon: Math.round(p.coords.longitude * 10) / 10 }),
       () => ok(null),
-      { enableHighAccuracy: false, maximumAge: 6 * 3600 * 1000, timeout: 20000 },
+      { enableHighAccuracy: false, maximumAge: 6 * 3600 * 1000, timeout: 15000 },
     ),
   );
 }
@@ -68,22 +68,27 @@ async function registrar(endpoint: string, zona: { lat: number; lon: number } | 
   }
 }
 
-// Devuelve si quedaron activados y si se compartió la zona.
-export async function activarAvisos(): Promise<{ ok: boolean; conZona: boolean }> {
+// Activa los avisos apenas se aceptan las notificaciones, sin esperar a la ubicación: en algunas
+// compus (Windows con la ubicación apagada) conseguirla tarda o falla. La zona se agrega cuando
+// llega, y alTenerZona avisa si se consiguió o no.
+export async function activarAvisos(alTenerZona?: (conZona: boolean) => void): Promise<boolean> {
   const permiso = await Notification.requestPermission();
-  if (permiso !== 'granted') return { ok: false, conZona: false };
+  if (permiso !== 'granted') return false;
   const registro = await navigator.serviceWorker.ready;
   const suscripcion =
     (await registro.pushManager.getSubscription()) ??
     (await registro.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: llaveAplicacion() }));
-  const zona = await pedirZona();
   try {
-    await registrar(suscripcion.endpoint, zona);
+    await registrar(suscripcion.endpoint, null);
   } catch (err) {
     await suscripcion.unsubscribe(); // si el servidor no la guardó, que no quede a medias
     throw err;
   }
-  return { ok: true, conZona: zona !== null };
+  pedirZona().then(async (zona) => {
+    if (zona) await registrar(suscripcion.endpoint, zona).catch(() => {});
+    alTenerZona?.(zona !== null);
+  });
+  return true;
 }
 
 export async function desactivarAvisos() {

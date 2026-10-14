@@ -23,16 +23,16 @@ function useAvisos() {
     setOcupado(true);
     setMensaje(null);
     try {
-      const { ok, conZona } = await activarAvisos();
-      if (!ok) setMensaje('No diste permiso para las notificaciones. Podés activarlas cuando quieras desde acá.');
-      else {
+      const ok = await activarAvisos((conZona) => {
         contarEvento(conZona ? 'avisos-con-zona' : 'avisos-sin-zona');
         setMensaje(
           conZona
             ? '¡Listo! Te vamos a avisar cuando sea un lindo momento para leer.'
             : 'Listo. Sin tu ubicación no sabemos el clima: te mandaremos un recordatorio por semana.',
         );
-      }
+      });
+      if (!ok) setMensaje('No diste permiso para las notificaciones. Podés activarlas cuando quieras desde acá.');
+      else setMensaje('¡Avisos activados! Si te pregunta, compartí tu ubicación para saber el clima.');
     } catch (err) {
       console.error(err);
       setMensaje('No se pudieron activar los avisos. Probá de nuevo en un rato.');
