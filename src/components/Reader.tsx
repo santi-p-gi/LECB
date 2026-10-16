@@ -25,6 +25,7 @@ import { buscarEnLibro, normalizar, type Resultado } from '../busqueda';
 import './Reader.css';
 import GuiaLector, { guiaYaVista } from './Guia';
 import { contarEvento } from '../estadisticas';
+import { MarcasIndice, PastillaVolver, useIndiceEnCapitulo, usePuntoLectura } from './PuntoLectura';
 
 interface ReaderProps {
   bookId: string;
@@ -449,6 +450,7 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
       );
       return;
     }
+    punto.pasarPagina();
     animarHoja(libroRef.current, visorRef.current, L, dir, prefs.animacion);
     (dir > 0 ? r.next() : r.prev()).then(() => animarFundido(visorRef.current, dir, prefs.animacion));
   }
@@ -896,6 +898,24 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
   const inicioCapitulo = pos?.pagSeccion === 1 || capituloEmpiezaAqui;
   const progreso = pagIni && total > 1 ? (pagIni - 1) / (total - 1) : 0;
 
+  // Hasta dónde había llegado, si ahora está releyendo más atrás (o saltó a otro lado).
+  const punto = usePuntoLectura(bookId, pos && pagIni ? { destino: pos.inicio, pagina: pagIni } : null, meta?.volverA, L.doble ? 4 : 2);
+  useIndiceEnCapitulo(panel === 'indice' && pestana === 'indice');
+  const capituloDeCfi = (cfi: string) => {
+    let c: ItemIndice | null = null;
+    for (const x of capitulosUbicados) {
+      if (compararCfi(x.cfi, cfi) <= 0) c = x.item;
+      else break;
+    }
+    return c;
+  };
+  const capituloIbas = punto.volver ? capituloDeCfi(punto.volver.destino) : null;
+  const marcadoresPorCapitulo = new Map<ItemIndice, number>();
+  for (const m of marcadores) {
+    const c = capituloDeCfi(m.cfi);
+    if (c) marcadoresPorCapitulo.set(c, (marcadoresPorCapitulo.get(c) ?? 0) + 1);
+  }
+
   let infoPaginasTexto = 'Calculando páginas…';
   if (pagIni && total) {
     infoPaginasTexto = L.doble && !derechaVacia && pagDer && pagDer > pagIni
@@ -1046,6 +1066,17 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
         <span className="info-b">{tiempoTexto}</span>
       </footer>
 
+      {punto.volver && !panel && voz.estado === 'detenido' && (
+        <PastillaVolver
+          pagina={punto.volver.pagina}
+          onVolver={() => {
+            const destino = punto.usar();
+            if (destino) irA(destino);
+          }}
+          onDescartar={punto.descartar}
+        />
+      )}
+
       {voz.estado !== 'detenido' && (
         <BarraVoz
           estado={voz.estado}
@@ -1116,6 +1147,11 @@ export default function Reader({ bookId, onClose }: ReaderProps) {
                             onClick={() => irA(item.href)}
                           >
                             <span className="tit">{item.label}</span>
+                            <MarcasIndice
+                              aca={item === capitulo}
+                              ibas={item === capituloIbas}
+                              marcadores={marcadoresPorCapitulo.get(item) ?? 0}
+                            />
                             <span className="lider" />
                             <span className="pag">{pag ?? ''}</span>
                           </button>

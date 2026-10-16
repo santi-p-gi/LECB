@@ -21,6 +21,7 @@ import { Cerrar, Cinta, Lista, Lupa, Volver } from './Iconos';
 import './Reader.css';
 import GuiaLector, { guiaYaVista } from './Guia';
 import { contarEvento } from '../estadisticas';
+import { MarcasIndice, PastillaVolver, useIndiceEnCapitulo, usePuntoLectura } from './PuntoLectura';
 
 
 /* ---------- de la selección a rectángulos guardables ---------- */
@@ -484,6 +485,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
     }
     animarHoja(libroRef.current, contenidoRef.current, L, dir, prefs.animacion);
     alFinalDeLaPagina.current = dir < 0;
+    punto.pasarPagina();
     setParte(0);
     setActual(nuevo);
     animarFundido(contenidoRef.current, dir, prefs.animacion);
@@ -748,6 +750,16 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
     return cap;
   };
   const capitulo = capituloDe(ultimaVisible);
+
+  /* ---------- volver a donde iba (si está releyendo más atrás) ---------- */
+  const punto = usePuntoLectura(bookId, pdf ? { destino: String(inicio), pagina: inicio + 1 } : null, meta?.volverA, deAPares ? 5 : 3);
+  useIndiceEnCapitulo(panel === 'indice' && pestana === 'indice');
+  const capituloIbas = punto.volver ? capituloDe(Number(punto.volver.destino)) : null;
+  const marcadoresPorCapitulo = new Map<EntradaIndicePdf, number>();
+  for (const m of marcadores) {
+    const c = capituloDe(Number(m.cfi));
+    if (c) marcadoresPorCapitulo.set(c, (marcadoresPorCapitulo.get(c) ?? 0) + 1);
+  }
 
   /* ---------- modo texto ---------- */
   function cambiarVista(texto: boolean) {
@@ -1051,6 +1063,17 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
         </div>
       )}
 
+      {punto.volver && !zoom && !panel && (
+        <PastillaVolver
+          pagina={punto.volver.pagina}
+          onVolver={() => {
+            const destino = punto.usar();
+            if (destino !== null) irAPagina(Number(destino));
+          }}
+          onDescartar={punto.descartar}
+        />
+      )}
+
       <footer className="barra barra-inf">
         <span className="info-b">{arrastre !== null ? `Ir a la página ${arrastre + 1}` : infoPaginas}</span>
         <input
@@ -1180,6 +1203,7 @@ export default function LectorPdf({ bookId, onClose }: { bookId: string; onClose
                         onClick={() => e.pagina !== null && irAPagina(e.pagina)}
                       >
                         <span className="tit">{e.label}</span>
+                        <MarcasIndice aca={e === capitulo} ibas={e === capituloIbas} marcadores={marcadoresPorCapitulo.get(e) ?? 0} />
                         <span className="lider" />
                         <span className="pag">{e.pagina !== null ? e.pagina + 1 : ''}</span>
                       </button>

@@ -10,6 +10,12 @@ export interface Marcador {
   creado: number;
 }
 
+// Dónde iba leyendo el lector antes de volver atrás a releer algo (para ofrecerle volver).
+export interface PuntoLectura {
+  destino: string; // CFI en los EPUB; número de página (desde 0) en los PDF
+  pagina: number;
+}
+
 export type ColorSubrayado = 'amarillo' | 'verde' | 'azul' | 'rosa';
 
 export interface Subrayado {
@@ -48,6 +54,7 @@ export interface BookMeta {
   highlights: Subrayado[];
   colecciones: string[]; // etiquetas de la estantería ("Facultad", "Novelas"…)
   modoTexto: boolean; // solo PDF: se lee como texto (reacomodado) en vez de la página original
+  volverA: PuntoLectura | null; // hasta dónde había llegado, si ahora está releyendo más atrás
 }
 
 // Guardamos el archivo EPUB aparte para que listar la biblioteca sea liviano.
@@ -86,6 +93,7 @@ function completar(book: Partial<BookMeta> & { id: string; title: string }): Boo
     highlights: [],
     colecciones: [],
     modoTexto: false,
+    volverA: null,
     ...book,
   };
 }

@@ -20,6 +20,7 @@ export type Evento =
   | 'nota'
   | 'busqueda'
   | 'marcador'
+  | 'volver-lectura'
   | 'importar-drm'
   | 'copia-exportada'
   | 'copia-restaurada'

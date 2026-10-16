@@ -112,6 +112,7 @@ export default function App() {
           highlights: [],
           colecciones: [],
           modoTexto: false,
+          volverA: null,
           ...extra,
         },
         archivo,
