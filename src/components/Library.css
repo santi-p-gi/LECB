@@ -102,6 +102,14 @@
 .hero-sub { font-size: 18px; color: var(--tinta-2); max-width: 30em; margin: 0 0 36px; }
 .hero-cta { display: flex; gap: 12px; flex-wrap: wrap; }
 .hero-nota { margin: 28px 0 0; font-size: 13px; color: var(--tinta-3); }
+/* Gratis · Sin cuenta · Privado · Sin internet */
+.garantias { list-style: none; display: flex; flex-wrap: wrap; gap: 8px; margin: 28px 0 0; padding: 0; }
+.garantias li {
+  font-size: 13px; color: var(--tinta-2); padding: 6px 12px 6px 26px; border-radius: 999px;
+  border: 1px solid var(--linea); position: relative;
+}
+.garantias li::before { content: '✓'; position: absolute; left: 10px; color: var(--acento); font-weight: 700; }
+.garantias + .hero-nota { margin-top: 18px; }
 
 .hero-arte { position: relative; padding: 8% 6%; }
 .hero-arte .portada { position: absolute; width: 30%; }
@@ -261,6 +269,33 @@
 .caract h3 { font: 500 20px/1.25 var(--f-display); margin: 0 0 8px; }
 .caract p { margin: 0; color: var(--tinta-2); font-size: 15px; }
 @media (max-width: 800px) { .caracts { grid-template-columns: 1fr; gap: 32px; } }
+
+/* Qué podés hacer: 6 funciones (en el celu, ícono al costado para que la lista no sea eterna) */
+.presentacion .caracts { row-gap: 48px; }
+@media (max-width: 800px) {
+  .presentacion .caracts { gap: 26px; }
+  .presentacion .caract { display: grid; grid-template-columns: 44px 1fr; gap: 16px; align-items: start; }
+  .presentacion .caract-ico { width: 44px; height: 44px; margin: 0; }
+  .presentacion .caract h3 { font-size: 18px; margin-bottom: 4px; }
+}
+
+/* Empezar en 3 pasos */
+.titulo-pasos { margin: 80px 0 32px; }
+.pasos { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 20px; }
+.pasos li { position: relative; padding: 26px 24px 24px; border: 1px solid var(--linea); border-radius: 18px; }
+.paso-num {
+  display: grid; place-items: center; width: 34px; height: 34px; border-radius: 50%; margin-bottom: 16px;
+  background: var(--tinta); color: var(--papel); font: 600 15px/1 var(--f-ui);
+}
+.pasos h3 { font: 500 19px/1.25 var(--f-display); margin: 0 0 6px; }
+.pasos p { margin: 0; color: var(--tinta-2); font-size: 15px; }
+.pasos a, .pasos .enlace { color: var(--acento); }
+@media (max-width: 800px) {
+  .titulo-pasos { margin-top: 56px; }
+  .pasos { grid-template-columns: 1fr; gap: 12px; }
+  .pasos li { padding: 20px; display: grid; grid-template-columns: 34px 1fr; column-gap: 16px; }
+  .paso-num { margin: 0; grid-row: span 2; }
+}
 
 .pie { border-top: 1px solid var(--linea); padding: 32px 0 40px; margin-top: 40px; font-size: 13px; color: var(--tinta-3); }
 .pie .contenedor { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }

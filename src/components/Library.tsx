@@ -8,9 +8,10 @@ import Portada from './Portada';
 import CopiaSeguridad from './CopiaSeguridad';
 import Fuentes from './Fuentes';
 import Contacto from './Contacto';
+import Presentacion from './Presentacion';
 import { ControlAvisos, InvitacionAvisos } from './Avisos';
 import { cargarFiltro, contarColecciones, FiltrosColecciones, guardarFiltro, VentanaColecciones } from './Colecciones';
-import { Cinta, CompartirIOS, Instalar, LibroAbierto, Logo, Luna, Subir, Tipografia } from './Iconos';
+import { CompartirIOS, Instalar, Logo, Luna, Subir } from './Iconos';
 import { esAndroid, useInstalacion } from '../instalacion';
 import './Library.css';
 
@@ -153,6 +154,8 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
       <main>
         {/* ================= HERO (solo con la biblioteca vacía) ================= */}
         {vacia && <Hero onSubir={elegirArchivo} onDemo={onDemo} onRestaurar={() => setCopiaAbierta(true)} importing={importing} />}
+        {/* Quien llega por primera vez ve enseguida qué es LECB; quien ya tiene libros, más abajo. */}
+        {vacia && <Presentacion onSubir={elegirArchivo} />}
 
         {/* ================= SEGUIR LEYENDO ================= */}
         {leyendo.length > 0 && (
@@ -255,32 +258,8 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
         {/* ================= DÓNDE CONSEGUIR LIBROS ================= */}
         <Fuentes />
 
-        {/* ================= CÓMO FUNCIONA ================= */}
-        <section className="seccion" id="como">
-          <div className="contenedor">
-            <div className="seccion-cab">
-              <h2 className="titulo-seccion">Pensado para leer, no para mirar pantallas</h2>
-            </div>
-            <div className="caracts">
-              <div className="caract">
-                <div className="caract-ico"><LibroAbierto /></div>
-                <h3>Formato libro de verdad</h3>
-                <p>Doble página, lomo, cabeceras y números de página. Como abrir un libro.</p>
-              </div>
-              <div className="caract">
-                <div className="caract-ico"><Tipografia /></div>
-                <h3>Tu tipografía, tu luz</h3>
-                <p>Temas papel, sepia y noche. Tres familias tipográficas, tamaño e interlineado a tu medida.</p>
-              </div>
-              <div className="caract">
-                <div className="caract-ico"><Cinta /></div>
-                <h3>Marcadores con cinta</h3>
-                <p>Marcá páginas, volvé al índice cuando quieras y retomá siempre donde lo dejaste.</p>
-              </div>
-            </div>
-            <p className="ornamento">❦</p>
-          </div>
-        </section>
+        {/* ================= QUÉ PODÉS HACER (para quien ya tiene libros) ================= */}
+        {!vacia && books !== null && <Presentacion onSubir={elegirArchivo} />}
       </main>
 
       {ayudaIOS && (
@@ -359,6 +338,12 @@ function Hero({ onSubir, onDemo, onRestaurar, importing }: { onSubir: () => void
               Probar con Don Quijote →
             </button>
           </div>
+          <ul className="garantias">
+            <li>Gratis</li>
+            <li>Sin crear cuenta</li>
+            <li>Tus libros no salen de tu dispositivo</li>
+            <li>Funciona sin internet</li>
+          </ul>
           <p className="hero-nota">Compatible con EPUB y PDF · En la compu y en el celu</p>
           <p className="hero-nota">
             <a className="enlace" href="#conseguir">¿Qué es un EPUB y dónde lo consigo?</a>

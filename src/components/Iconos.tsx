@@ -126,3 +126,26 @@ export const Detener = () => (
     <rect x="6.5" y="6.5" width="11" height="11" rx="1.5" />
   </svg>
 );
+
+export const Resaltador = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="m14.5 4.5 5 5L11 18H6v-5l8.5-8.5Z" />
+    <path d="M4 21h16" />
+  </svg>
+);
+
+export const Diccionario = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M5 4.5A1.5 1.5 0 0 1 6.5 3H19v15H6.5A1.5 1.5 0 0 0 5 19.5v-15Z" />
+    <path d="M5 19.5A1.5 1.5 0 0 0 6.5 21H19v-3" />
+    <path d="m9.5 13 2.5-6 2.5 6m-4.2-1.8h3.4" />
+  </svg>
+);
+
+export const Pellizco = () => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <rect x="5" y="2.5" width="14" height="19" rx="2.5" />
+    <path d="M9 9 7.5 7.5M15 9l1.5-1.5M9 15l-1.5 1.5M15 15l1.5 1.5" />
+    <circle cx="12" cy="12" r="1.6" />
+  </svg>
+);
