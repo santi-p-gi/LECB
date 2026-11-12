@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
+import { paginasDeGuias, sitemap } from './guias/generar';
 
 // Genera /sw.js (el service worker) a partir de src/service-worker.js con un número de
 // versión nuevo en cada construcción. Así el navegador detecta que cambió, instala la
@@ -28,6 +29,18 @@ function serviceWorker(): Plugin {
   };
 }
 
+// Las guías de ayuda (guias/*.html → /guias/<direccion>/) y el sitemap con todas las páginas.
+function guias(): Plugin {
+  return {
+    name: 'lecb-guias',
+    apply: 'build',
+    generateBundle() {
+      for (const { archivo, html } of paginasDeGuias()) this.emitFile({ type: 'asset', fileName: archivo, source: html });
+      this.emitFile({ type: 'asset', fileName: 'sitemap.xml', source: sitemap() });
+    },
+  };
+}
+
 export default defineConfig({
-  plugins: [react(), serviceWorker()],
+  plugins: [react(), serviceWorker(), guias()],
 });

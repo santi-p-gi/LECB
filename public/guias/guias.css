@@ -1,0 +1,77 @@
+/* Estilos de las guías (lecb.ar/guias/…): los mismos colores y letras que LECB. */
+:root {
+  --papel: #f5efe3; --superficie: #fbf8f2; --tinta: #211c16; --tinta-2: #5c5245; --tinta-3: #8a7f6f;
+  --linea: #dacdb4; --acento: #9b3b2a; --acento-suave: #f1ddd3;
+  --f-display: "Fraunces", Georgia, serif; --f-lectura: "Literata", Georgia, serif; --f-ui: "Inter", system-ui, sans-serif;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --papel: #17140f; --superficie: #1d1913; --tinta: #ece4d6; --tinta-2: #b5aa98; --tinta-3: #857a69;
+    --linea: #3a3228; --acento: #e07a5f; --acento-suave: #3a2620;
+    color-scheme: dark;
+  }
+}
+*, *::before, *::after { box-sizing: border-box; }
+body { margin: 0; background: var(--papel); color: var(--tinta); font: 17px/1.7 var(--f-lectura); -webkit-font-smoothing: antialiased; }
+a { color: var(--acento); }
+
+.nav {
+  display: flex; align-items: center; gap: 20px; max-width: 760px; margin: 0 auto; padding: 16px 20px;
+  border-bottom: 1px solid var(--linea); font-family: var(--f-ui);
+}
+.logo { display: flex; align-items: center; gap: 8px; font: 600 20px/1 var(--f-display); color: var(--tinta); text-decoration: none; margin-right: auto; }
+.logo svg { width: 24px; height: 24px; color: var(--acento); }
+.nav-guias { color: var(--tinta-2); text-decoration: none; font-size: 15px; }
+.btn {
+  display: inline-block; padding: 10px 18px; border-radius: 999px; background: var(--tinta); color: var(--papel);
+  font: 600 15px/1 var(--f-ui); text-decoration: none;
+}
+
+main { max-width: 760px; margin: 0 auto; padding: 8px 20px 40px; }
+.migas { font: 13px/1.4 var(--f-ui); color: var(--tinta-3); margin: 28px 0 12px; }
+.migas a { color: var(--tinta-3); }
+h1 { font: 500 clamp(2rem, 6vw, 2.8rem)/1.1 var(--f-display); letter-spacing: -.02em; margin: 0 0 12px; text-wrap: balance; }
+.fecha { font: 13px/1 var(--f-ui); color: var(--tinta-3); margin: 0 0 28px; }
+.bajada { font-size: 19px; color: var(--tinta-2); }
+h2 { font: 500 1.6rem/1.2 var(--f-display); margin: 44px 0 12px; }
+h3 { font: 600 1.05rem/1.3 var(--f-ui); margin: 28px 0 8px; }
+p, li { color: var(--tinta); }
+li + li { margin-top: 6px; }
+strong, b { font-weight: 600; }
+code { font: 14px var(--f-ui); background: var(--acento-suave); padding: 2px 6px; border-radius: 6px; }
+
+.nota {
+  border-left: 3px solid var(--acento); background: var(--superficie); padding: 14px 18px; border-radius: 0 12px 12px 0;
+  font-size: 16px; margin: 24px 0;
+}
+.nota p { margin: 0; }
+table { width: 100%; border-collapse: collapse; font: 15px/1.45 var(--f-ui); margin: 20px 0; }
+th, td { text-align: left; padding: 10px 8px; border-bottom: 1px solid var(--linea); vertical-align: top; }
+th { color: var(--tinta-2); font-weight: 600; }
+
+.llamado {
+  margin: 48px 0; padding: 28px; border-radius: 20px; background: var(--superficie); border: 1px solid var(--linea);
+}
+.llamado h2 { margin-top: 0; }
+.llamado p { color: var(--tinta-2); margin: 0 0 20px; }
+
+.otras ul, .lista-guias { list-style: none; padding: 0; }
+.otras li { padding: 10px 0; border-bottom: 1px solid var(--linea); margin: 0; }
+.otras a { text-decoration: none; font-weight: 600; }
+.lista-guias li { margin: 0 0 12px; }
+.lista-guias a {
+  display: block; padding: 20px; border: 1px solid var(--linea); border-radius: 16px; text-decoration: none; background: var(--superficie);
+}
+.lista-guias b { display: block; font: 500 1.25rem/1.25 var(--f-display); color: var(--tinta); margin-bottom: 6px; }
+.lista-guias span { color: var(--tinta-2); font-size: 15.5px; }
+
+.pie { max-width: 760px; margin: 0 auto; padding: 24px 20px 40px; border-top: 1px solid var(--linea); font: 13.5px/1.6 var(--f-ui); color: var(--tinta-3); }
+.pie a { color: var(--tinta-2); }
+
+@media (max-width: 520px) {
+  body { font-size: 16.5px; }
+  .nav { gap: 14px; }
+  .nav-guias { display: none; }
+  .llamado { padding: 22px; }
+}

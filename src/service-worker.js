@@ -238,8 +238,10 @@ async function primeroInternet(pedido) {
   const cache = await caches.open(CACHE_APP);
   try {
     const respuesta = await fetch(pedido);
-    // La web tiene una sola página (index.html); la guardamos siempre como "/".
-    if (respuesta.ok) await cache.put('/', respuesta.clone());
+    // La app es una sola página (index.html); la guardamos siempre como "/". Las guías
+    // (/guias/…) son páginas aparte: no se guardan, para no reemplazar a la app sin internet.
+    const esApp = !new URL(pedido.url).pathname.startsWith('/guias');
+    if (respuesta.ok && esApp) await cache.put('/', respuesta.clone());
     return respuesta;
   } catch {
     return (await cache.match('/', { ignoreVary: true })) || Response.error();

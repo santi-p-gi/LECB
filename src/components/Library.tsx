@@ -326,6 +326,12 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
       <footer className="pie">
         <div className="contenedor">
           <Contacto />
+          <nav className="pie-guias" aria-label="Guías">
+            <b>Guías:</b> <a href="/guias/abrir-epub-en-el-celular/">Abrir un EPUB en el celular</a> ·{' '}
+            <a href="/guias/leer-pdf-en-el-celular/">Leer PDF cómodo en el celular</a> ·{' '}
+            <a href="/guias/libros-epub-gratis-en-espanol/">Libros EPUB gratis y legales</a> ·{' '}
+            <a href="/guias/que-es-un-epub/">Qué es un EPUB</a>
+          </nav>
           <span>LECB — tus libros y notas nunca salen de tu dispositivo</span>
           <span>Contamos visitas de forma anónima y sin cookies (GoatCounter)</span>
           <ControlAvisos />

@@ -299,6 +299,8 @@
 
 .pie { border-top: 1px solid var(--linea); padding: 32px 0 40px; margin-top: 40px; font-size: 13px; color: var(--tinta-3); }
 .pie .contenedor { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.pie-guias { flex-basis: 100%; font-size: 14px; color: var(--tinta-2); line-height: 1.8; }
+.pie-guias a { color: var(--tinta-2); }
 .contacto { flex-basis: 100%; margin: 0 0 4px; font-size: 14.5px; color: var(--tinta-2); }
 .contacto a { color: var(--acento); font-weight: 500; text-decoration: none; border-bottom: 1px solid color-mix(in srgb, var(--acento) 35%, transparent); }
 .contacto a:hover { border-bottom-color: var(--acento); }
