@@ -1,7 +1,6 @@
 // Componente principal: decide si mostramos la biblioteca o el lector.
 import { useEffect, useRef, useState } from 'react';
 import { addBook, deleteBook, getAllBooks, type BookMeta } from './db';
-import { readEpubInfo, tieneDrm } from './epub';
 import { enMB, esFaltaDeEspacio, espacioLibre, pedirPersistencia, TAMANO_AVISO, TAMANO_MAXIMO } from './almacenamiento';
 import Library from './components/Library';
 import Lector from './components/Lector';
@@ -70,7 +69,7 @@ export default function App() {
   // Lanza ErrorImportacion con un mensaje para el usuario si algo sale mal.
   async function importar(archivo: Blob, nombre: string, extra: Partial<BookMeta> = {}) {
     const formato = esPdf(archivo, nombre) ? 'pdf' : 'epub';
-    let info: Awaited<ReturnType<typeof readEpubInfo>> & { paginas?: number };
+    let info: Awaited<ReturnType<typeof import('./epub').readEpubInfo>> & { paginas?: number };
     try {
       // Se lee el archivo en memoria solo para sacar título y portada;
       // después se libera y en la base guardamos el Blob (sin otra copia en memoria).
@@ -81,6 +80,8 @@ export default function App() {
         info = await readPdfInfo(datos, nombre);
       } else {
         // Los libros con DRM se reconocen antes de intentar leerlos, para explicar bien qué pasa.
+        // epub.js se descarga recién al importar el primer libro (la portada carga más rápido).
+        const { readEpubInfo, tieneDrm } = await import('./epub');
         if (await tieneDrm(datos)) throw new ErrorImportacion(MENSAJE_DRM);
         info = await readEpubInfo(datos);
       }

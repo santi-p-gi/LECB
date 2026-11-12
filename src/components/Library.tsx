@@ -1,11 +1,10 @@
 // Pantalla de inicio y biblioteca (maqueta "inicio.html").
-import { useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState, type CSSProperties, type DragEvent } from 'react';
 import { updateBook, type BookMeta } from '../db';
 import { colorTexto, hashTexto } from '../colores';
 import { guardarTemaSitio } from '../preferencias';
 import { enMB, TAMANO_MAXIMO } from '../almacenamiento';
 import Portada from './Portada';
-import CopiaSeguridad from './CopiaSeguridad';
 import Fuentes from './Fuentes';
 import Contacto from './Contacto';
 import Presentacion from './Presentacion';
@@ -13,7 +12,11 @@ import { ControlAvisos, InvitacionAvisos } from './Avisos';
 import { cargarFiltro, contarColecciones, FiltrosColecciones, guardarFiltro, VentanaColecciones } from './Colecciones';
 import { CompartirIOS, Instalar, Logo, Luna, Subir } from './Iconos';
 import { esAndroid, useInstalacion } from '../instalacion';
+import { debeRecordarCopia, posponerRecordatorio } from '../recordatorioCopia';
 import './Library.css';
+
+// La copia de seguridad (y la librería de .zip) se descarga recién al abrir su ventana.
+const CopiaSeguridad = lazy(() => import('./CopiaSeguridad'));
 
 // "Props": los datos y funciones que App le pasa a este componente.
 interface LibraryProps {
@@ -40,6 +43,7 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
   const [libroColecciones, setLibroColecciones] = useState<BookMeta | null>(null);
   const [ayudaIOS, setAyudaIOS] = useState(false);
   const [copiaAbierta, setCopiaAbierta] = useState(false);
+  const [, setRecordatorioVisto] = useState(0); // para volver a dibujar al posponer el recordatorio
   const instalacion = useInstalacion();
 
   const elegirArchivo = () => fileInputRef.current?.click();
@@ -170,7 +174,19 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
                   <TarjetaLectura key={book.id} book={book} destacada={i === 0} onOpen={() => onOpen(book.id)} />
                 ))}
               </div>
-              <InvitacionAvisos />
+              {/* De a un cartel por vez: primero la copia de seguridad, que es lo que más importa. */}
+              {books && debeRecordarCopia(books) ? (
+                <RecordatorioCopia
+                  books={books}
+                  onCopia={() => setCopiaAbierta(true)}
+                  onAhoraNo={() => {
+                    posponerRecordatorio(books);
+                    setRecordatorioVisto((n) => n + 1);
+                  }}
+                />
+              ) : (
+                <InvitacionAvisos />
+              )}
             </div>
           </section>
         )}
@@ -293,12 +309,18 @@ export default function Library({ books, importing, onImport, onDemo, onOpen, on
       )}
 
       {copiaAbierta && (
+        <Suspense fallback={null}>
         <CopiaSeguridad
           cantidadLibros={books?.length ?? 0}
           pesoLibros={(books ?? []).reduce((total, b) => total + b.size, 0)}
           onCerrar={() => setCopiaAbierta(false)}
           onRestaurada={onBibliotecaCambiada}
+          onCopiaHecha={() => {
+            if (books) posponerRecordatorio(books);
+            setRecordatorioVisto((n) => n + 1);
+          }}
         />
+        </Suspense>
       )}
 
       <footer className="pie">
@@ -388,6 +410,29 @@ function Hero({ onSubir, onDemo, onRestaurar, importing }: { onSubir: () => void
         </div>
       </div>
     </section>
+  );
+}
+
+// Cartel en "Seguir leyendo" cada 3 libros leídos sin copia de seguridad.
+function RecordatorioCopia({ books, onCopia, onAhoraNo }: { books: BookMeta[]; onCopia: () => void; onAhoraNo: () => void }) {
+  const leidos = books.filter((b) => b.lastOpenedAt !== null).length;
+  const subrayados = books.reduce((n, b) => n + b.highlights.length, 0);
+  const extra = subrayados ? `, ${subrayados} ${subrayados === 1 ? 'subrayado' : 'subrayados'}` : '';
+  return (
+    <div className="invitacion-avisos" role="region" aria-label="Copia de seguridad">
+      <span className="invitacion-emoji" aria-hidden>💾</span>
+      <div className="invitacion-texto">
+        <b>¿Hacemos una copia de seguridad?</b>
+        <p>
+          Tenés {leidos} libros leídos{extra} y tu progreso guardados solo en este navegador. Si se borran sus datos o
+          cambiás de dispositivo, se pierden. Con una copia los recuperás en un minuto.
+        </p>
+      </div>
+      <div className="invitacion-botones">
+        <button className="btn btn-primario btn-chico" onClick={onCopia}>Hacer copia</button>
+        <button className="btn btn-secundario btn-chico" onClick={onAhoraNo}>Ahora no</button>
+      </div>
+    </div>
   );
 }
 

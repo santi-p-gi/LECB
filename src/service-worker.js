@@ -14,6 +14,9 @@ const CACHE_FUENTES = 'lecb-fuentes'; // las tipografías no cambian entre versi
 
 // Archivos que se guardan apenas se instala.
 const ESENCIALES = ['/', '/manifest.webmanifest', '/favicon.svg', '/iconos/icono-192.png', '/iconos/icono-512.png'];
+// Todo el código de esta versión (lo completa vite.config.ts), incluidos los lectores, que la
+// página carga recién al abrir un libro: así se puede leer sin internet aunque nunca se haya abierto uno.
+const CODIGO = '__CODIGO__';
 
 /* ---------- 1. Instalación: guardar lo básico ---------- */
 self.addEventListener('install', (evento) => {
@@ -26,7 +29,7 @@ self.addEventListener('install', (evento) => {
       // internet desde la primera visita.
       const html = await (await cache.match('/')).text();
       const codigo = [...html.matchAll(/(?:src|href)="(\/assets\/[^"]+)"/g)].map((m) => m[1]);
-      await cache.addAll(codigo);
+      await cache.addAll([...new Set([...codigo, ...(Array.isArray(CODIGO) ? CODIGO : [])])]);
       // Lo mismo con las tipografías que pide la página (si falla, la app se instala igual).
       const fuentes = [...html.matchAll(/href="(https:\/\/fonts\.googleapis\.com\/[^"]+)"/g)].map((m) =>
         m[1].replace(/&amp;/g, '&'),

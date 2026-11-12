@@ -9,9 +9,10 @@ interface Props {
   pesoLibros: number; // bytes (aproximado)
   onCerrar: () => void;
   onRestaurada: () => void; // para volver a leer la biblioteca
+  onCopiaHecha?: () => void;
 }
 
-export default function CopiaSeguridad({ cantidadLibros, pesoLibros, onCerrar, onRestaurada }: Props) {
+export default function CopiaSeguridad({ cantidadLibros, pesoLibros, onCerrar, onRestaurada, onCopiaHecha }: Props) {
   const [trabajando, setTrabajando] = useState(false);
   const [mensaje, setMensaje] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -33,6 +34,7 @@ export default function CopiaSeguridad({ cantidadLibros, pesoLibros, onCerrar, o
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       setMensaje(`Listo: se descargó la copia (${enMB(copia.size)}). Guardala en un lugar seguro, por ejemplo en tu nube o un pendrive.`);
       contarEvento('copia-exportada');
+      onCopiaHecha?.();
     } catch (err) {
       console.error(err);
       setMensaje(null);
